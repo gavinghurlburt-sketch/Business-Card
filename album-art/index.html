@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gavin Geddes — Album Art</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+
+  :root{
+    --bg:#12181B;
+    --panel:#1B2226;
+    --panel-edge:#2A3236;
+    --amber:#E8A33D;
+    --ink:#EDEAE2;
+    --ink-dim:#9CA6A8;
+    --frame-radius: 3px;
+    --maxw: 920px;
+  }
+
+  *{ box-sizing:border-box; }
+
+  html,body{
+    margin:0; padding:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Work Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  a{ color:inherit; text-decoration:none; }
+
+  .sprockets{
+    display:flex; justify-content:space-between;
+    padding: 10px 18px;
+    max-width: var(--maxw);
+    margin: 0 auto;
+  }
+  .sprockets span{
+    width:8px; height:8px; border-radius:50%;
+    background:var(--panel-edge);
+  }
+
+  main{
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 8px 24px 64px;
+  }
+
+  header{
+    padding: 32px 0 28px;
+    border-bottom: 1px solid var(--panel-edge);
+    margin-bottom: 36px;
+  }
+
+  .eyebrow{
+    font-size: 13px;
+    color: var(--ink-dim);
+    letter-spacing: 0.02em;
+    margin-bottom: 10px;
+  }
+
+  h1{
+    font-family:'Fraunces', serif;
+    font-optical-sizing: auto;
+    font-weight: 600;
+    font-size: 40px;
+    line-height: 1.05;
+    margin: 0 0 12px;
+    color: var(--ink);
+  }
+
+  .role-line{
+    font-size: 15.5px;
+    color: var(--ink-dim);
+    line-height: 1.5;
+    max-width: 46ch;
+  }
+
+  .roll-label{
+    font-size: 12.5px;
+    color: var(--ink-dim);
+    margin: 0 0 14px;
+  }
+
+  /* ---- gallery grid ---- */
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 720px){
+    .grid{ grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 420px){
+    .grid{ grid-template-columns: 1fr; }
+  }
+
+  .cover{
+    position:relative;
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--frame-radius);
+    overflow:hidden;
+    cursor:pointer;
+    transition: border-color .15s ease;
+  }
+  .cover:hover{ border-color:#3A444A; }
+
+  .cover-img{
+    position:relative;
+    aspect-ratio: 1 / 1;
+    width:100%;
+    background:#0D1214;
+    overflow:hidden;
+  }
+  .cover-img img{
+    width:100%; height:100%;
+    object-fit:cover;
+    display:block;
+    filter: saturate(0.9) brightness(0.88);
+    transition: filter .15s ease, transform .3s ease;
+  }
+  .cover:hover .cover-img img{
+    filter: saturate(1) brightness(1);
+    transform: scale(1.03);
+  }
+
+  .set-badge{
+    position:absolute;
+    top:10px; right:10px;
+    padding: 4px 9px;
+    font-family:'Work Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    background:rgba(18,24,27,0.75);
+    border:1px solid var(--panel-edge);
+    border-radius: var(--frame-radius);
+    color: var(--amber);
+    z-index: 2;
+  }
+
+  .cover-body{
+    padding: 13px 15px 15px;
+  }
+
+  .cover h2{
+    font-family:'Fraunces', serif;
+    font-weight: 500;
+    font-size: 16.5px;
+    margin: 0 0 3px;
+    color: var(--ink);
+  }
+
+  .cover .meta{
+    font-size: 12px;
+    color: var(--ink-dim);
+  }
+
+  footer{
+    margin-top: 34px;
+    padding-top: 22px;
+    border-top: 1px solid var(--panel-edge);
+    font-size: 13.5px;
+    color: var(--ink-dim);
+    display:flex;
+    flex-direction:column;
+    gap: 6px;
+  }
+  footer a{ color: var(--ink); }
+  footer a:hover{ color: var(--amber); }
+
+  /* ---- lightbox ---- */
+  .lightbox{
+    position:fixed; inset:0;
+    background: rgba(9,12,14,0.92);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index: 100;
+    padding: 24px;
+  }
+  .lightbox.open{ display:flex; }
+
+  .lightbox-inner{
+    position:relative;
+    max-width: 640px;
+    width:100%;
+  }
+
+  .lightbox-frame{
+    position:relative;
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--frame-radius);
+    overflow:hidden;
+  }
+  .lightbox-frame img{
+    display:block;
+    width:100%;
+    height:auto;
+  }
+
+  .lightbox-caption{
+    padding: 16px 4px 0;
+  }
+  .lightbox-caption h2{
+    font-family:'Fraunces', serif;
+    font-weight: 500;
+    font-size: 20px;
+    margin: 0 0 4px;
+    color: var(--ink);
+  }
+  .lightbox-caption .meta{
+    font-size: 13px;
+    color: var(--ink-dim);
+  }
+
+  .lb-close{
+    position:absolute;
+    top:-14px; right:-14px;
+    width:34px; height:34px;
+    border-radius:50%;
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    color: var(--ink);
+    font-size: 16px;
+    line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    z-index: 3;
+  }
+  .lb-close:hover{ color: var(--amber); }
+
+  .lb-nav{
+    position:absolute;
+    top:50%;
+    transform: translateY(-50%);
+    width:38px; height:38px;
+    border-radius:50%;
+    background: rgba(18,24,27,0.75);
+    border: 1px solid var(--panel-edge);
+    color: var(--ink);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    font-size:16px;
+    z-index: 3;
+  }
+  .lb-nav:hover{ color: var(--amber); }
+  .lb-prev{ left:10px; }
+  .lb-next{ right:10px; }
+
+  .lb-dots{
+    display:flex;
+    gap:6px;
+    justify-content:center;
+    margin-top: 12px;
+  }
+  .lb-dots span{
+    width:6px; height:6px; border-radius:50%;
+    background: var(--panel-edge);
+    transition: background .15s ease;
+  }
+  .lb-dots span.active{ background: var(--amber); }
+
+  @media (prefers-reduced-motion: reduce){
+    .cover, .cover-img img{ transition:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sprockets">
+  <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+</div>
+
+<main>
+
+  <header>
+    <div class="eyebrow">Nashville, TN</div>
+    <h1>Album Art</h1>
+    <p class="role-line">Cover shoots and band photography. Tap any cover — a couple open onto more from the same shoot.</p>
+  </header>
+
+  <div class="roll-label">Roll 03 — nine covers</div>
+  <div class="grid" id="galleryGrid"></div>
+
+  <footer>
+    <a href="mailto:gavin_geddes@icloud.com">gavin_geddes@icloud.com</a>
+    <span>Cover shoots and band photography — booking through the link above.</span>
+  </footer>
+
+</main>
+
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-inner">
+    <div class="lightbox-frame">
+      <div class="lb-close" id="lbClose">&#10005;</div>
+      <div class="lb-nav lb-prev" id="lbPrev" style="display:none;">&#8249;</div>
+      <div class="lb-nav lb-next" id="lbNext" style="display:none;">&#8250;</div>
+      <img id="lbImg" src="" alt="">
+    </div>
+    <div class="lightbox-caption">
+      <h2 id="lbTitle"></h2>
+      <div class="meta" id="lbMeta"></div>
+      <div class="lb-dots" id="lbDots"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const covers = [
+    { title:"Bubbles", meta:"2 photos from the shoot", images:["images/bubble-woman.jpg","images/bubble-finger.jpg"] },
+    { title:"Maddie", meta:"", images:["images/maddie.jpg"] },
+    { title:"Nosedive", meta:"Natasha Blaine", images:["images/nosedive.jpg"] },
+    { title:"When You Know", meta:"DRVE DRVE", images:["images/when-you-know.jpg"] },
+    { title:"Unless", meta:"", images:["images/unless.jpg"] },
+    { title:"soyboi", meta:"fucking heck", images:["images/soyboi.jpg"] },
+    { title:"Gracie", meta:"", images:["images/gracie.jpg"] },
+    { title:"Natasha", meta:"", images:["images/natasha.jpg"] },
+    { title:"Untitled", meta:"", images:["images/bubble-orb.jpg"] }
+  ];
+
+  const grid = document.getElementById('galleryGrid');
+  covers.forEach((c, idx) => {
+    const div = document.createElement('div');
+    div.className = 'cover';
+    div.innerHTML = `
+      <div class="cover-img">
+        ${c.images.length > 1 ? `<span class="set-badge">${c.images.length} photos</span>` : ''}
+        <img src="${c.images[0]}" alt="${c.title}">
+      </div>
+      <div class="cover-body">
+        <h2>${c.title}</h2>
+        ${c.meta ? `<div class="meta">${c.meta}</div>` : ''}
+      </div>
+    `;
+    div.addEventListener('click', () => openLightbox(idx));
+    grid.appendChild(div);
+  });
+
+  const lightbox = document.getElementById('lightbox');
+  const lbImg = document.getElementById('lbImg');
+  const lbTitle = document.getElementById('lbTitle');
+  const lbMeta = document.getElementById('lbMeta');
+  const lbDots = document.getElementById('lbDots');
+  const lbPrev = document.getElementById('lbPrev');
+  const lbNext = document.getElementById('lbNext');
+
+  let currentCover = null;
+  let currentImg = 0;
+
+  function openLightbox(idx){
+    currentCover = covers[idx];
+    currentImg = 0;
+    renderLightbox();
+    lightbox.classList.add('open');
+  }
+
+  function renderLightbox(){
+    const c = currentCover;
+    lbImg.src = c.images[currentImg];
+    lbImg.alt = c.title;
+    lbTitle.textContent = c.title;
+    lbMeta.textContent = c.meta || '';
+
+    const multi = c.images.length > 1;
+    lbPrev.style.display = multi ? 'flex' : 'none';
+    lbNext.style.display = multi ? 'flex' : 'none';
+
+    lbDots.innerHTML = '';
+    if (multi) {
+      c.images.forEach((_, i) => {
+        const dot = document.createElement('span');
+        if (i === currentImg) dot.className = 'active';
+        lbDots.appendChild(dot);
+      });
+    }
+  }
+
+  function closeLightbox(){
+    lightbox.classList.remove('open');
+  }
+
+  document.getElementById('lbClose').addEventListener('click', closeLightbox);
+  lightbox.addEventListener('click', (e) => {
+    if (e.target === lightbox) closeLightbox();
+  });
+  lbPrev.addEventListener('click', () => {
+    currentImg = (currentImg - 1 + currentCover.images.length) % currentCover.images.length;
+    renderLightbox();
+  });
+  lbNext.addEventListener('click', () => {
+    currentImg = (currentImg + 1) % currentCover.images.length;
+    renderLightbox();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!lightbox.classList.contains('open')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') lbPrev.click();
+    if (e.key === 'ArrowRight') lbNext.click();
+  });
+</script>
+
+</body>
+</html>
