@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Fretboard Coach — Chord Practice</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700;800&display=swap');
+
+  :root{
+    --paper:#F6F1E6;
+    --surface:#FFFFFF;
+    --surface-2:#EFE7D6;
+    --ink:#2A2118;
+    --ink-soft:#6E6153;
+    --ink-faint:#A79C8C;
+    --line:#DDD2BC;
+    --accent:#C08A2E;
+    --accent-ink:#5C3F12;
+    --accent-soft:#F2E1B8;
+    --felt:#1F5F4A;
+    --felt-ink:#0F3C2D;
+    --felt-soft:#DCEAE3;
+    --good:#2F7A4D;
+    --good-soft:#E1F0E3;
+    --bad:#B4463A;
+    --bad-soft:#F7E1DE;
+    --open-note:#3B7EA8;
+    --open-soft:#DFEBF3;
+    --shadow: 0 1px 2px rgba(42,33,24,.06), 0 8px 24px -12px rgba(42,33,24,.18);
+    --radius: 14px;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#1B1712; --surface:#262019; --surface-2:#332B21; --ink:#F3EBDD;
+      --ink-soft:#C9BBA6; --ink-faint:#8B7F6D; --line:#453A2C;
+      --accent:#E0A83F; --accent-ink:#FFEAB8; --accent-soft:#4A3A18;
+      --felt:#4FA382; --felt-ink:#CFEBDF; --felt-soft:#1E3831;
+      --good:#63C384; --good-soft:#1F3A28; --bad:#E8776A; --bad-soft:#402320;
+      --open-note:#6FB6DE; --open-soft:#1E3546;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 30px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#1B1712; --surface:#262019; --surface-2:#332B21; --ink:#F3EBDD;
+    --ink-soft:#C9BBA6; --ink-faint:#8B7F6D; --line:#453A2C;
+    --accent:#E0A83F; --accent-ink:#FFEAB8; --accent-soft:#4A3A18;
+    --felt:#4FA382; --felt-ink:#CFEBDF; --felt-soft:#1E3831;
+    --good:#63C384; --good-soft:#1F3A28; --bad:#E8776A; --bad-soft:#402320;
+    --open-note:#6FB6DE; --open-soft:#1E3546;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 30px -14px rgba(0,0,0,.6);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:'Work Sans',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{ max-width:1040px; margin:0 auto; padding:28px 20px 64px; }
+  h1,h2,h3{ font-family:'Fraunces',Georgia,serif; text-wrap:balance; margin:0; }
+  .eyebrow{ text-transform:uppercase; letter-spacing:.12em; font-size:11.5px; font-weight:700; color:var(--felt); }
+  a{ color:inherit; }
+  button{ font-family:inherit; cursor:pointer; }
+  button:focus-visible, [tabindex]:focus-visible, input:focus-visible, select:focus-visible{
+    outline:2px solid var(--accent); outline-offset:2px;
+  }
+  .btn{
+    display:inline-flex; align-items:center; gap:8px; justify-content:center;
+    padding:11px 18px; border-radius:999px; border:1px solid var(--line);
+    background:var(--surface); color:var(--ink); font-weight:600; font-size:14.5px;
+    transition:transform .12s ease, box-shadow .12s ease, background .12s ease;
+  }
+  .btn:hover{ box-shadow:var(--shadow); transform:translateY(-1px); }
+  .btn-primary{ background:var(--felt); border-color:var(--felt); color:#fff; }
+  .btn-primary:hover{ background:var(--felt-ink); }
+  .btn-accent{ background:var(--accent); border-color:var(--accent); color:#2A1E06; }
+  .btn-ghost{ background:transparent; border-color:transparent; }
+  .btn-ghost:hover{ background:var(--surface-2); box-shadow:none; transform:none; }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; transform:none; box-shadow:none; }
+  .btn-sm{ padding:7px 13px; font-size:13px; }
+
+  input[type=text], textarea{
+    font-family:inherit; font-size:15px; padding:10px 12px; border-radius:10px;
+    border:1px solid var(--line); background:var(--surface); color:var(--ink); width:100%;
+  }
+  label{ font-size:12.5px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.06em; display:block; margin-bottom:6px; }
+  .field{ display:flex; flex-direction:column; gap:4px; }
+
+  .topbar{ display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 20px; border-bottom:1px solid var(--line); background:var(--surface); flex-wrap:wrap; }
+  .brand{ display:flex; align-items:center; gap:11px; }
+  .brand svg{ flex:none; }
+  .brand-name{ font-family:'Fraunces',serif; font-weight:600; font-size:19px; letter-spacing:-.01em; }
+  .brand-sub{ font-size:12px; color:var(--ink-faint); margin-top:-2px; }
+
+  .panel{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow); }
+
+  /* chart */
+  .chart-wrap{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .chart{ display:inline-block; }
+  .chart-heads{ display:grid; grid-auto-flow:column; gap:0; }
+  .head-btn{
+    width:var(--cw,42px); height:26px; display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:13px; border:none; background:none; color:var(--ink-faint);
+    border-radius:8px 8px 0 0;
+  }
+  .head-btn.open{ color:var(--open-note); }
+  .head-btn.mute{ color:var(--bad); }
+  .head-btn[disabled]{ opacity:.28; cursor:default; }
+  .nut{ height:6px; background:var(--ink); margin:0 3px; border-radius:2px; }
+  .fret-grid{ display:grid; position:relative; background:var(--surface-2); border-radius:0 0 10px 10px; padding:0 3px 6px; }
+  .fret-row{ display:grid; grid-auto-flow:column; position:relative; }
+  .fret-row:not(:last-child){ border-bottom:1px solid var(--line); }
+  .cell{ width:var(--cw,42px); height:var(--ch,42px); position:relative; background:none; border:none; padding:0; }
+  .cell::before{
+    content:""; position:absolute; left:50%; top:0; bottom:0; width:2px; background:var(--ink-faint); opacity:.55; transform:translateX(-50%);
+  }
+  .cell:hover::after{ content:""; position:absolute; inset:4px; border-radius:50%; border:1.5px dashed var(--ink-faint); opacity:.6; }
+  .dot{
+    position:absolute; inset:0; margin:auto; width:28px; height:28px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px;
+    background:var(--felt); color:#fff; box-shadow:0 2px 4px rgba(0,0,0,.25);
+  }
+  .cell.readonly{ cursor:default; }
+  .cell.editable{ cursor:pointer; }
+  .string-names{ display:grid; grid-auto-flow:column; margin-top:2px; }
+  .string-names span{ width:var(--cw,42px); text-align:center; font-size:11px; color:var(--ink-faint); font-weight:700; }
+
+  .dot.correct{ background:var(--good); }
+  .dot.incorrect{ background:var(--bad); }
+  .dot.ghost{ background:transparent; border:2px dashed var(--ink-faint); color:var(--ink-faint); }
+  .head-btn.correct{ color:var(--good); }
+  .head-btn.incorrect{ color:var(--bad); text-decoration:underline wavy; }
+
+  .chord-name-display{ font-family:'Fraunces',serif; font-weight:700; font-size:clamp(30px,6vw,44px); text-align:center; }
+  .chord-note{ text-align:center; color:var(--ink-soft); font-size:14px; margin-top:-8px; }
+
+  .stage{ max-width:640px; margin:0 auto; }
+  .progress-track{ display:flex; gap:6px; margin:18px 0 28px; }
+  .progress-dot{ flex:1; height:6px; border-radius:999px; background:var(--line); }
+  .progress-dot.done{ background:var(--felt); }
+  .progress-dot.current{ background:var(--accent); }
+  .score-row{ display:flex; gap:10px; flex-wrap:wrap; margin:22px 0; }
+  .score-chip{ flex:1 1 140px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 16px; text-align:center; box-shadow:var(--shadow); }
+  .score-chip .num{ font-family:'Fraunces',serif; font-weight:700; font-size:26px; font-variant-numeric:tabular-nums; }
+  .score-chip .lbl{ font-size:11.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-faint); font-weight:700; margin-top:2px; }
+  .score-chip.good .num{ color:var(--good); }
+  .score-chip.warn .num{ color:var(--accent); }
+  .score-chip.bad .num{ color:var(--bad); }
+  .center-actions{ display:flex; justify-content:center; gap:12px; margin-top:22px; flex-wrap:wrap; }
+  .banner{ border-radius:14px; padding:16px 18px; font-size:14.5px; line-height:1.5; }
+  .banner-felt{ background:var(--felt-soft); color:var(--felt-ink); }
+  .banner-accent{ background:var(--accent-soft); color:var(--accent-ink); }
+  .legend{ display:flex; gap:18px; flex-wrap:wrap; justify-content:center; font-size:13px; color:var(--ink-soft); margin-top:10px; }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .swatch{ width:12px; height:12px; border-radius:50%; display:inline-block; }
+
+  .summary-list{ display:flex; flex-direction:column; gap:10px; margin:18px 0; }
+  .summary-row{ display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
+  .summary-row .name{ font-family:'Fraunces',serif; font-weight:600; flex:1; }
+  .summary-row .pct{ font-weight:800; font-variant-numeric:tabular-nums; }
+
+  .helper{ font-size:13px; color:var(--ink-faint); margin-top:8px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const STRING_NAMES = ["E","A","D","G","B","E"];
+  const FRETS = 4;
+  function s(type, fret, finger){ return {type, fret: fret||null, finger: finger||null}; }
+  function blankStrings(){ return Array.from({length:6}, ()=>s(null)); }
+
+  function decodeGuide(str){
+    let b64 = str.replace(/-/g,'+').replace(/_/g,'/');
+    while(b64.length % 4) b64 += '=';
+    const json = decodeURIComponent(escape(atob(b64)));
+    return JSON.parse(json);
+  }
+
+  /* ---------------- chart rendering ---------------- */
+  function renderChart(opts){
+    const { strings, mode, answer } = opts;
+    const cw = opts.small ? 34 : 42;
+    let html = `<div class="chart-wrap"><div class="chart" style="--cw:${cw}px">`;
+    html += `<div class="chart-heads" style="grid-template-columns:repeat(6,${cw}px)">`;
+    for(let i=0;i<6;i++){
+      const st = strings[i];
+      const fretted = st.type === 'fret';
+      const cls = fretted ? '' : (st.type==='open' ? 'open' : st.type==='mute' ? 'mute' : '');
+      const label = fretted ? '' : (st.type==='open' ? 'O' : st.type==='mute' ? '✕' : '·');
+      let correctness = '';
+      if(mode==='result' && answer){
+        const a = answer[i];
+        if(!fretted && a.type!=='fret'){ correctness = (a.type===st.type) ? 'correct' : 'incorrect'; }
+      }
+      const clickable = (mode!=='result') && !fretted;
+      html += `<button type="button" class="head-btn ${cls} ${correctness}" data-string="${i}"
+        ${clickable? '' : 'disabled'} aria-label="String ${STRING_NAMES[i]}${fretted?', fretted below':(st.type==='open'?', open':st.type==='mute'?', muted':', not set')}">${label}</button>`;
+    }
+    html += `</div><div class="nut"></div><div class="fret-grid">`;
+    for(let f=1; f<=FRETS; f++){
+      html += `<div class="fret-row" style="grid-template-columns:repeat(6,${cw}px); height:${cw}px" data-fret-row="${f}">`;
+      for(let i=0;i<6;i++){
+        const st = strings[i];
+        const editable = mode!=='result';
+        html += `<button type="button" class="cell ${editable?'editable':'readonly'}" style="--cw:${cw}px;--ch:${cw}px" data-string="${i}" data-fret="${f}" ${editable?'':'disabled'}>`;
+        if(st.type==='fret' && st.fret===f){
+          let dotClass='';
+          if(mode==='result' && answer){
+            const a = answer[i];
+            dotClass = (a.type==='fret' && a.fret===f) ? 'correct' : 'incorrect';
+          }
+          html += `<span class="dot ${dotClass}">${st.finger||''}</span>`;
+        } else if(mode==='result' && answer){
+          const a = answer[i];
+          if(a.type==='fret' && a.fret===f && !(st.type==='fret'&&st.fret===f)){
+            html += `<span class="dot ghost">${a.finger||''}</span>`;
+          }
+        }
+        html += `</button>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    html += `<div class="string-names" style="grid-template-columns:repeat(6,${cw}px)">`;
+    STRING_NAMES.forEach(n=> html += `<span>${n}</span>`);
+    html += `</div></div></div>`;
+    return html;
+  }
+
+  function attachChartEvents(container, strings, {onCellClick, onHeadClick}){
+    container.querySelectorAll('.cell.editable').forEach(btn=>{
+      btn.addEventListener('click', ()=>{ onCellClick(parseInt(btn.dataset.string), parseInt(btn.dataset.fret)); });
+    });
+    container.querySelectorAll('.head-btn:not([disabled])').forEach(btn=>{
+      btn.addEventListener('click', ()=>{ onHeadClick(parseInt(btn.dataset.string)); });
+    });
+  }
+
+  function cycleCell(strings, stringIdx, fret){
+    const st = strings[stringIdx];
+    if(st.type==='fret' && st.fret===fret){
+      const order = [1,2,3,4,null];
+      const idx = order.indexOf(st.finger);
+      const next = order[(idx+1)%order.length];
+      if(next===null){ strings[stringIdx] = s(null); }
+      else { strings[stringIdx] = s('fret', fret, next); }
+    } else {
+      strings[stringIdx] = s('fret', fret, 1);
+    }
+  }
+  function cycleHead(strings, stringIdx){
+    const st = strings[stringIdx];
+    if(st.type==='fret') return;
+    if(st.type==='open') strings[stringIdx] = s('mute');
+    else if(st.type==='mute') strings[stringIdx] = s(null);
+    else strings[stringIdx] = s('open');
+  }
+
+  /* ---------------- scoring ---------------- */
+  function scoreChord(answer, guess){
+    let posTotal=0, posCorrect=0, omTotal=0, omCorrect=0, fingerTotal=0, fingerCorrect=0;
+    for(let i=0;i<6;i++){
+      const a = answer[i], g = guess[i];
+      posTotal++;
+      const aFretted = a.type==='fret', gFretted = g.type==='fret';
+      if(aFretted){
+        if(gFretted && g.fret===a.fret) posCorrect++;
+        fingerTotal++;
+        if(gFretted && g.fret===a.fret && g.finger===a.finger) fingerCorrect++;
+      } else {
+        if(!gFretted) posCorrect++;
+        omTotal++;
+        if(g.type===a.type) omCorrect++;
+      }
+    }
+    const pos = posTotal? posCorrect/posTotal : 1;
+    const om = omTotal? omCorrect/omTotal : 1;
+    const fin = fingerTotal? fingerCorrect/fingerTotal : 1;
+    const overall = pos*0.6 + om*0.2 + fin*0.2;
+    return { pos, om, fin, overall, posCorrect, posTotal, omCorrect, omTotal, fingerCorrect, fingerTotal };
+  }
+  const pct = x => Math.round(x*100);
+
+  /* ---------------- mic strum check ---------------- */
+  const OPEN_FREQ = [82.41, 110.00, 146.83, 196.00, 246.94, 329.63];
+  function chordBassFreq(answer){
+    for(let i=0;i<6;i++){
+      const st = answer[i];
+      if(st.type==='mute') continue;
+      if(st.type==='open') return OPEN_FREQ[i];
+      if(st.type==='fret') return OPEN_FREQ[i] * Math.pow(2, st.fret/12);
+    }
+    return null;
+  }
+  function autoCorrelatePitch(buf, sampleRate){
+    const SIZE = buf.length;
+    let energy=0; for(let i=0;i<SIZE;i++) energy += buf[i]*buf[i];
+    energy = energy/SIZE;
+    if(Math.sqrt(energy) < 0.006) return {freq:null, clarity:0};
+    const minLag = Math.max(2, Math.floor(sampleRate/400));
+    const maxLag = Math.min(Math.floor(SIZE/2), Math.floor(sampleRate/70));
+    let bestLag=-1, bestCorr=0;
+    for(let lag=minLag; lag<=maxLag; lag++){
+      let corr=0;
+      for(let i=0;i<SIZE-lag;i++) corr += buf[i]*buf[i+lag];
+      corr = corr/(SIZE-lag);
+      if(corr>bestCorr){ bestCorr=corr; bestLag=lag; }
+    }
+    const clarity = energy>0 ? Math.max(0, Math.min(1, bestCorr/energy)) : 0;
+    if(bestLag<=0) return {freq:null, clarity};
+    return { freq: sampleRate/bestLag, clarity };
+  }
+  function analyzeStrumSamples(samples, sampleRate, expectedBassFreq){
+    const { freq, clarity } = autoCorrelatePitch(samples, sampleRate);
+    let bassMatch = null;
+    if(freq && expectedBassFreq){
+      const cents = 1200*Math.log2(freq/expectedBassFreq);
+      let folded = ((cents % 1200)+1200)%1200;
+      if(folded>600) folded -= 1200;
+      bassMatch = Math.abs(folded) <= 70;
+    }
+    return { freq, clarity, bassMatch };
+  }
+  function createStrumListener({ expectedBassFreq, targetStrums=5, onProgress, onDone, onError }){
+    let active = true, ctx, stream, source, processor, gain;
+    let quiet = true, baseline = 0.015, lastOnsetAt = -10;
+    let collecting = false, collectStart = 0, sampleBuffer = [];
+    const results = [];
+    let safetyTimer;
+
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      setTimeout(()=> onError && onError(new Error('unsupported')), 0);
+      return { stop(){} };
+    }
+    navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } })
+      .then(strm=>{
+        if(!active){ strm.getTracks().forEach(t=>t.stop()); return; }
+        stream = strm;
+        ctx = new (window.AudioContext||window.webkitAudioContext)();
+        source = ctx.createMediaStreamSource(stream);
+        processor = ctx.createScriptProcessor(2048,1,1);
+        gain = ctx.createGain(); gain.gain.value = 0;
+        source.connect(processor); processor.connect(gain); gain.connect(ctx.destination);
+        processor.onaudioprocess = (e)=>{
+          if(!active) return;
+          const data = e.inputBuffer.getChannelData(0);
+          let sum=0; for(let i=0;i<data.length;i++) sum += data[i]*data[i];
+          const rms = Math.sqrt(sum/data.length);
+          const now = ctx.currentTime;
+          if(collecting){
+            for(let i=0;i<data.length;i++) sampleBuffer.push(data[i]);
+            if((now-collectStart) >= 0.22){
+              collecting = false;
+              const r = analyzeStrumSamples(new Float32Array(sampleBuffer), ctx.sampleRate, expectedBassFreq);
+              results.push(r);
+              sampleBuffer = [];
+              onProgress && onProgress({ strumsDetected: results.length, level: rms });
+              if(results.length >= targetStrums) finish();
+            }
+            return;
+          }
+          if(!quiet && rms < baseline*1.6) quiet = true;
+          if(quiet && rms > Math.max(0.025, baseline*4.5) && (now-lastOnsetAt) > 0.4){
+            quiet = false; lastOnsetAt = now;
+            setTimeout(()=>{ if(active && !collecting){ collecting=true; collectStart=ctx.currentTime; sampleBuffer=[]; } }, 110);
+          }
+          if(quiet) baseline = baseline*0.98 + rms*0.02;
+          onProgress && onProgress({ strumsDetected: results.length, level: rms });
+        };
+      })
+      .catch(err=>{ onError && onError(err); });
+
+    function finish(){ stop(); onDone && onDone(results); }
+    function stop(){
+      active = false;
+      clearTimeout(safetyTimer);
+      try{ processor && (processor.onaudioprocess = null); processor && processor.disconnect(); }catch(e){}
+      try{ source && source.disconnect(); }catch(e){}
+      try{ gain && gain.disconnect(); }catch(e){}
+      try{ stream && stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+      try{ ctx && ctx.state!=='closed' && ctx.close(); }catch(e){}
+    }
+    safetyTimer = setTimeout(()=>{ if(active) finish(); }, 16000);
+    return { stop };
+  }
+  function summarizeStrums(results){
+    const withPitch = results.filter(r=>r.freq);
+    const bassMatches = results.filter(r=>r.bassMatch).length;
+    const avgClarity = results.length ? results.reduce((s,r)=>s+r.clarity,0)/results.length : 0;
+    return { count: results.length, bassMatches, avgClarity, heardPitch: withPitch.length };
+  }
+
+  const ICON_LOGO = `<svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="15" cy="15" r="15" fill="var(--felt)"/>
+    <path d="M9 8 L9 22 M13 8 L13 22 M17 8 L17 22 M21 8 L21 22" stroke="#fff" stroke-width="1.3" opacity=".85"/>
+    <rect x="7" y="9" width="16" height="2.4" rx="1" fill="var(--accent)"/>
+    <circle cx="13" cy="16" r="2.6" fill="var(--accent)"/>
+    <circle cx="21" cy="19" r="2.6" fill="#fff"/>
+  </svg>`;
+
+  function esc(str){ return String(str==null?'':str).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  /* ================= ROUTER ================= */
+  // This page is hosted plainly (not embedded), so a #g=... link works
+  // normally — it's tried first. Pasting a code is the guaranteed fallback.
+  const root = document.getElementById('app');
+  const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const searchParams = new URLSearchParams(location.search);
+  const urlGuideData = hashParams.get('g') || searchParams.get('g');
+
+  if(urlGuideData){
+    try{ runPracticeApp(decodeGuide(urlGuideData)); }
+    catch(e){ runEntryScreen(); }
+  } else {
+    runEntryScreen();
+  }
+
+  /* ================= ENTRY SCREEN (paste a code) ================= */
+  function runEntryScreen(){
+    let errorMsg = '';
+    function render(){
+      root.innerHTML = `<div class="topbar"><div class="brand">${ICON_LOGO}<div><div class="brand-name">Fretboard Coach</div>
+          <div class="brand-sub">Guitar chord practice</div></div></div></div>
+        <div class="wrap"><div class="stage" style="padding-top:14px;text-align:center">
+          <div class="eyebrow">Student &amp; parent practice</div>
+          <h1 style="margin-top:8px;font-size:clamp(24px,5vw,34px)">Got a practice code?</h1>
+          <p style="color:var(--ink-soft);margin-top:10px;max-width:46ch;margin-left:auto;margin-right:auto">
+            Paste the code your teacher sent you below, then tap Start.
+          </p>
+          <div class="field" style="max-width:480px;margin:20px auto 0;text-align:left">
+            <label for="code-input">Practice code</label>
+            <textarea id="code-input" rows="4" placeholder="Paste your code here…" style="font-size:13px"></textarea>
+          </div>
+          ${errorMsg ? `<div class="banner banner-accent" style="max-width:480px;margin:12px auto 0;text-align:left">${esc(errorMsg)}</div>` : ''}
+          <div class="center-actions">
+            <button class="btn btn-ghost btn-sm" id="paste-btn">Paste from clipboard</button>
+            <button class="btn btn-primary" id="start-code-btn" style="padding:12px 26px">Start practicing →</button>
+          </div>
+        </div></div>`;
+      bind();
+    }
+    function bind(){
+      document.getElementById('paste-btn').addEventListener('click', async ()=>{
+        try{
+          const text = await navigator.clipboard.readText();
+          document.getElementById('code-input').value = text;
+        }catch(e){ errorMsg = "Couldn't read the clipboard — paste it in manually instead."; render(); }
+      });
+      document.getElementById('start-code-btn').addEventListener('click', ()=>{
+        const raw = document.getElementById('code-input').value.trim();
+        if(!raw){ errorMsg = 'Paste your practice code first.'; render(); return; }
+        try{
+          const guide = decodeGuide(raw.replace(/\s+/g,''));
+          if(!guide || !Array.isArray(guide.chords) || !guide.chords.length) throw new Error('empty');
+          runPracticeApp(guide);
+        }catch(e){
+          errorMsg = "That code didn't work — check that you copied the whole thing, then try again.";
+          render();
+        }
+      });
+    }
+    render();
+  }
+
+  /* ================= PRACTICE APP ================= */
+  function runPracticeApp(guide){
+    const state = {
+      screen:'intro', current: 0,
+      guesses: guide.chords.map(()=>blankStrings()),
+      results: guide.chords.map(()=>null),
+      mic: guide.chords.map(()=>({status:'idle', progress:{strumsDetected:0,level:0}, results:null, error:null, controller:null})),
+    };
+    function stopMic(idx){
+      const m = state.mic[idx];
+      if(m && m.controller){ m.controller.stop(); m.controller=null; }
+    }
+
+    function topbar(){
+      return `<div class="topbar"><div class="brand">${ICON_LOGO}<div><div class="brand-name">Fretboard Coach</div>
+        <div class="brand-sub">${guide.teacherName? esc(guide.teacherName)+"'s practice set" : "Guitar chord practice"}</div></div></div>
+        <button class="btn btn-ghost btn-sm" id="switch-code-btn">Enter a different code</button>
+        </div>`;
+    }
+
+    function render(){
+      root.innerHTML = topbar() + '<div class="wrap"><div class="stage">' + screenHTML() + '</div></div>';
+      bind();
+    }
+
+    function screenHTML(){
+      if(state.screen==='intro') return introHTML();
+      if(state.screen==='practice') return practiceHTML();
+      if(state.screen==='summary') return summaryHTML();
+      return '';
+    }
+
+    function introHTML(){
+      return `
+        <div style="text-align:center;padding-top:18px">
+          <div class="eyebrow">Personalized chord practice</div>
+          <h1 style="margin-top:8px;font-size:clamp(26px,5vw,38px)">${esc(guide.title||'Your Chord Practice')}</h1>
+          <p style="color:var(--ink-soft);margin-top:10px;max-width:48ch;margin-left:auto;margin-right:auto">
+            ${guide.student ? `Hi ${esc(guide.student)}! ` : ''}You'll see a chord name, then tap the chart to place your finger dots —
+            like a paint-by-numbers for the guitar neck. Mark which strings are open (O) or muted (X) too, for bonus points.
+          </p>
+          <div class="banner banner-felt" style="text-align:left;max-width:440px;margin:22px auto 0">
+            <strong>How to answer:</strong><br/>
+            • Tap a fret box to add a finger dot &mdash; <strong>click the dot again to change its finger number</strong> (cycles 1→4→blank).<br/>
+            • Tap the letter above a string to mark it <strong>O</strong> (open) or <strong>X</strong> (muted).<br/>
+            • After each chord, there's a bonus mic round — play it for real and we'll check the sound.<br/>
+            • ${guide.chords.length} chord${guide.chords.length===1?'':'s'} in this practice set.
+          </div>
+          <button class="btn btn-primary" id="start-btn" style="margin-top:26px;padding:13px 26px;font-size:15.5px">Start practicing →</button>
+        </div>`;
+    }
+
+    function practiceHTML(){
+      const idx = state.current;
+      const chord = guide.chords[idx];
+      const guess = state.guesses[idx];
+      const result = state.results[idx];
+      const mode = result ? 'result' : 'input';
+      const dots = guide.chords.map((c,i)=>{
+        const cls = i===idx ? 'current' : (state.results[i] ? 'done' : '');
+        return `<div class="progress-dot ${cls}"></div>`;
+      }).join('');
+      let html = `<div class="progress-track">${dots}</div>`;
+      html += `<div class="chord-name-display">${esc(chord.name)}</div>`;
+      if(chord.tip) html += `<div class="chord-note">${esc(chord.tip)}</div>`;
+      html += `<div id="chart-slot" style="margin-top:18px">` + renderChart({strings:guess, mode, answer:chord.answer}) + `</div>`;
+      if(!result){
+        html += `<p class="helper" style="text-align:center">Click the dot again to change its finger number (cycles 1→4→blank).</p>`;
+      }
+      html += `<div class="legend">
+        <span><span class="swatch" style="background:var(--felt)"></span>your dot</span>
+        <span><span class="swatch" style="background:var(--good)"></span>correct</span>
+        <span><span class="swatch" style="background:var(--bad)"></span>incorrect</span>
+        <span><span class="swatch" style="background:transparent;border:2px dashed var(--ink-faint)"></span>correct spot</span>
+      </div>`;
+      if(!result){
+        html += `<div class="center-actions">
+          <button class="btn btn-ghost btn-sm" id="clear-btn">Clear chart</button>
+          <button class="btn btn-primary" id="check-btn" style="padding:11px 24px">Check my answer</button>
+        </div>`;
+      } else {
+        html += `<div class="score-row">
+          <div class="score-chip ${gradeClass(result.pos)}"><div class="num">${pct(result.pos)}%</div><div class="lbl">Finger placement</div></div>
+          <div class="score-chip ${gradeClass(result.om)}"><div class="num">${pct(result.om)}%</div><div class="lbl">Open / mute</div></div>
+          <div class="score-chip ${gradeClass(result.fin)}"><div class="num">${pct(result.fin)}%</div><div class="lbl">Fingering</div></div>
+        </div>`;
+        html += `<div class="center-actions">
+          <button class="btn btn-ghost btn-sm" id="retry-btn">Try again</button>
+          <button class="btn btn-primary" id="next-btn" style="padding:11px 24px">${idx < guide.chords.length-1 ? 'Next chord →' : 'See my results →'}</button>
+        </div>`;
+        html += micPanelHTML(idx);
+      }
+      return html;
+    }
+
+    function gradeClass(v){ return v>=0.99 ? 'good' : v>=0.6 ? 'warn' : 'bad'; }
+
+    function micPanelHTML(idx){
+      const m = state.mic[idx];
+      let inner = '';
+      if(m.status==='listening'){
+        const n = m.progress.strumsDetected;
+        inner = `<p class="helper" style="margin:0 0 10px" id="mic-status-text">Strum ${Math.min(n+1,5)} of 5 — play the chord once, clearly, then pause.</p>
+          <div style="height:10px;border-radius:6px;background:var(--surface-2);overflow:hidden;max-width:280px;margin:0 auto">
+            <div id="mic-level-bar" style="height:100%;width:0%;background:var(--felt)"></div>
+          </div>
+          <div class="progress-track" style="max-width:280px;margin:14px auto 0" id="mic-strum-dots">
+            ${Array.from({length:5},(_,i)=>`<div class="progress-dot ${i<n?'done':''}"></div>`).join('')}
+          </div>
+          <button class="btn btn-ghost btn-sm" id="mic-cancel-btn" style="margin-top:14px">Cancel</button>`;
+      } else if(m.status==='error'){
+        inner = `<div class="banner banner-accent" style="text-align:left">${esc(m.error)}</div>
+          <button class="btn btn-ghost btn-sm" id="mic-start-btn" style="margin-top:12px">Try again</button>`;
+      } else if(m.status==='done'){
+        const summ = summarizeStrums(m.results);
+        const clarityPct = pct(summ.avgClarity);
+        const clarityLabel = clarityPct>=70 ? 'Clean & clear' : clarityPct>=40 ? 'A little buzzy' : 'Hard to hear clearly';
+        inner = `<div class="score-row">
+            <div class="score-chip ${summ.bassMatches>=4?'good':summ.bassMatches>=2?'warn':'bad'}"><div class="num">${summ.bassMatches}/5</div><div class="lbl">Bass note on pitch</div></div>
+            <div class="score-chip ${clarityPct>=70?'good':clarityPct>=40?'warn':'bad'}"><div class="num">${clarityPct}%</div><div class="lbl">${esc(clarityLabel)}</div></div>
+          </div>
+          <p class="helper">Heard a clear pitch on ${summ.heardPitch}/5 strums. This checks your bass note and tone — it doesn't verify every finger, that's what the chart above is for.</p>
+          <button class="btn btn-ghost btn-sm" id="mic-start-btn">Strum again</button>`;
+      } else {
+        inner = `<p class="helper" style="margin:0 0 12px">Play this chord 5 times, clearly, one strum at a time — we'll check your bass note and how clean it rings. (Bonus — not required.)</p>
+          <button class="btn btn-accent btn-sm" id="mic-start-btn">\u{1F3A4} Start strum check</button>`;
+      }
+      return `<div class="panel" style="margin-top:20px;text-align:center">
+        <div class="eyebrow">Bonus</div>
+        <h3 style="font-family:'Fraunces',serif;font-size:16px;margin-top:4px">Strum it for real</h3>
+        ${inner}
+      </div>`;
+    }
+
+    function summaryHTML(){
+      const overallAvg = state.results.reduce((sum,r)=>sum+r.overall,0)/state.results.length;
+      const rows = guide.chords.map((c,i)=>{
+        const r = state.results[i];
+        return `<div class="summary-row"><span class="name">${esc(c.name)}</span><span class="pct" style="color:${r.overall>=0.85?'var(--good)':r.overall>=0.6?'var(--accent)':'var(--bad)'}">${pct(r.overall)}%</span></div>`;
+      }).join('');
+      const teacherLine = guide.teacherEmail ? `mailto:${guide.teacherEmail}?subject=${encodeURIComponent((guide.student?guide.student+"'s ":'')+guide.title+' — results')}&body=${encodeURIComponent(summaryText(overallAvg))}` : null;
+      return `
+        <div style="text-align:center;padding-top:10px">
+          <div class="eyebrow">Practice complete</div>
+          <h1 style="margin-top:8px">Nice work${guide.student?', '+esc(guide.student):''}!</h1>
+          <div class="score-chip ${gradeClass(overallAvg)}" style="max-width:220px;margin:20px auto 0;padding:20px">
+            <div class="num" style="font-size:34px">${pct(overallAvg)}%</div>
+            <div class="lbl">Overall score</div>
+          </div>
+        </div>
+        <div class="summary-list">${rows}</div>
+        <div class="center-actions">
+          <button class="btn btn-ghost" id="restart-btn">Practice again</button>
+          ${teacherLine ? `<a class="btn btn-accent" href="${teacherLine}">Email results to ${esc(guide.teacherName||'teacher')}</a>` : ''}
+        </div>
+        <p class="helper" style="text-align:center;margin-top:18px">Keep this link — you can come back and practice this same set anytime.</p>
+      `;
+    }
+
+    function summaryText(avg){
+      let t = `${guide.student||'A student'} just finished "${guide.title}" — overall score ${pct(avg)}%.\n\n`;
+      guide.chords.forEach((c,i)=> t += `${c.name}: ${pct(state.results[i].overall)}% (placement ${pct(state.results[i].pos)}%, open/mute ${pct(state.results[i].om)}%, fingering ${pct(state.results[i].fin)}%)\n`);
+      return t;
+    }
+
+    function bind(){
+      const switchBtn = document.getElementById('switch-code-btn');
+      if(switchBtn) switchBtn.addEventListener('click', ()=>{ stopMic(state.current); runEntryScreen(); });
+
+      const startBtn = document.getElementById('start-btn');
+      if(startBtn) startBtn.addEventListener('click', ()=>{ state.screen='practice'; render(); });
+
+      const slot = document.getElementById('chart-slot');
+      if(slot && !state.results[state.current]){
+        attachChartEvents(slot, state.guesses[state.current], {
+          onCellClick(i,f){ cycleCell(state.guesses[state.current], i, f); render(); },
+          onHeadClick(i){ cycleHead(state.guesses[state.current], i); render(); }
+        });
+      }
+      const clearBtn = document.getElementById('clear-btn');
+      if(clearBtn) clearBtn.addEventListener('click', ()=>{ state.guesses[state.current] = blankStrings(); render(); });
+
+      const checkBtn = document.getElementById('check-btn');
+      if(checkBtn) checkBtn.addEventListener('click', ()=>{
+        const chord = guide.chords[state.current];
+        state.results[state.current] = scoreChord(chord.answer, state.guesses[state.current]);
+        render();
+      });
+      const retryBtn = document.getElementById('retry-btn');
+      if(retryBtn) retryBtn.addEventListener('click', ()=>{
+        state.results[state.current] = null;
+        state.guesses[state.current] = blankStrings();
+        render();
+      });
+      const nextBtn = document.getElementById('next-btn');
+      if(nextBtn) nextBtn.addEventListener('click', ()=>{
+        stopMic(state.current);
+        if(state.current < guide.chords.length-1){ state.current++; render(); }
+        else { state.screen='summary'; render(); }
+      });
+      const restartBtn = document.getElementById('restart-btn');
+      if(restartBtn) restartBtn.addEventListener('click', ()=>{
+        state.mic.forEach((m,i)=>stopMic(i));
+        state.current=0; state.screen='practice';
+        state.guesses = guide.chords.map(()=>blankStrings());
+        state.results = guide.chords.map(()=>null);
+        state.mic = guide.chords.map(()=>({status:'idle', progress:{strumsDetected:0,level:0}, results:null, error:null, controller:null}));
+        render();
+      });
+
+      const micStartBtn = document.getElementById('mic-start-btn');
+      if(micStartBtn) micStartBtn.addEventListener('click', ()=>{
+        const idx = state.current;
+        const chord = guide.chords[idx];
+        const m = state.mic[idx];
+        m.status='listening'; m.progress={strumsDetected:0,level:0}; m.results=null; m.error=null;
+        render();
+        const bassFreq = chordBassFreq(chord.answer);
+        m.controller = createStrumListener({
+          expectedBassFreq: bassFreq,
+          targetStrums: 5,
+          onProgress(p){
+            m.progress = p;
+            const bar = document.getElementById('mic-level-bar');
+            if(bar) bar.style.width = Math.min(100, Math.round(p.level*400)) + '%';
+            const dotsWrap = document.getElementById('mic-strum-dots');
+            if(dotsWrap){
+              const dots = dotsWrap.children;
+              for(let i=0;i<dots.length;i++) dots[i].classList.toggle('done', i<p.strumsDetected);
+            }
+            const statusText = document.getElementById('mic-status-text');
+            if(statusText) statusText.textContent = `Strum ${Math.min(p.strumsDetected+1,5)} of 5 — play the chord once, clearly, then pause.`;
+          },
+          onDone(results){ m.status='done'; m.results=results; m.controller=null; render(); },
+          onError(err){
+            m.status='error'; m.controller=null;
+            if(err && err.name==='NotAllowedError') m.error = "Microphone access was blocked. Check your browser's site permissions and allow the microphone, then try again.";
+            else if(err && err.name==='NotFoundError') m.error = "No microphone was found on this device.";
+            else if(err && err.message==='unsupported') m.error = "This browser can't access the microphone here.";
+            else m.error = "Couldn't start the microphone — you can skip this bonus round and move on.";
+            render();
+          }
+        });
+      });
+      const micCancelBtn = document.getElementById('mic-cancel-btn');
+      if(micCancelBtn) micCancelBtn.addEventListener('click', ()=>{
+        stopMic(state.current);
+        state.mic[state.current].status='idle';
+        render();
+      });
+    }
+
+    render();
+  }
+})();
+</script>
+</body>
+</html>
