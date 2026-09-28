@@ -17,6 +17,8 @@
     --bad:#B23A2E;
     --bad-bg:#F7E6E1;
     --ring-track:#E3D8BE;
+    --note-line:#2C6E9B;
+    --note-space:#2E7D52;
     --shadow: 0 1px 2px rgba(36,30,21,.06), 0 8px 24px -12px rgba(36,30,21,.18);
   }
   @media (prefers-color-scheme: dark){
@@ -36,6 +38,10 @@
       --bad:#E88676;
       --bad-bg:#3A2119;
       --ring-track:#39311A;
+    --note-line:#79B4E8;
+    --note-space:#5FBE8B;
+      --note-line:#79B4E8;
+      --note-space:#5FBE8B;
       --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 30px -12px rgba(0,0,0,.6);
     }
   }
@@ -195,6 +201,30 @@
     gap:8px;
   }
   .range-pair span{ color:var(--ink-faint); font-size:.8rem; }
+
+  /* ---------- hint card ---------- */
+  .hintcard{
+    background:var(--surface); border:1px solid var(--line); border-radius:16px;
+    box-shadow:var(--shadow); padding:20px; width:100%; max-width:560px;
+    display:flex; flex-direction:column; gap:12px;
+    max-height:90vh; overflow-y:auto;
+  }
+  .hint-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+  .hint-head h2{ font-family:'Fraunces',serif; margin:0; font-size:1.15rem; }
+  .hint-sub{ margin:3px 0 0; font-size:.78rem; color:var(--ink-faint); }
+  .hint-key{ display:flex; flex-direction:column; gap:7px; }
+  .keyitem{ display:flex; align-items:center; gap:8px; font-size:.8rem; color:var(--ink-soft); flex-wrap:wrap; }
+  .keyitem .dot{ width:11px; height:11px; border-radius:50%; flex:none; }
+  .keyitem b{ color:var(--ink); font-family:'JetBrains Mono',monospace; letter-spacing:.08em; }
+  .hint-split{ display:flex; gap:12px; flex-wrap:wrap; }
+  .hint-half{
+    flex:1 1 220px; min-width:0; background:var(--surface-2);
+    border:1px solid var(--line); border-radius:12px; padding:12px;
+  }
+  .hint-half h3{ margin:0 0 2px; font-size:.85rem; }
+  .hint-half p{ margin:0 0 4px; font-size:.72rem; color:var(--ink-faint); }
+  .hint-staffline{ stroke:var(--ink); stroke-width:1.6; }
+  .hint-label{ font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; }
 
   /* ---------- assignments ---------- */
   .assign{
@@ -716,6 +746,17 @@
 
     <div class="panel-row">
       <div class="field">
+        <label class="field-label">Hints</label>
+        <div class="seg" id="hintSeg">
+          <button data-val="free">Free</button>
+          <button data-val="cost" class="active">Costs 2 pts</button>
+          <button data-val="off">Off</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-row">
+      <div class="field">
         <label class="field-label">Practice on</label>
         <div class="seg" id="sourceSeg">
           <button data-val="random" class="active">Random notes</button>
@@ -824,12 +865,31 @@
     </div>
 
     <div class="controls" id="runControls" hidden>
+      <button class="btn" id="hintBtn" hidden>Hint</button>
       <button class="btn" id="skipBtn" hidden>Skip note</button>
       <button class="btn" id="stopBtn">Stop &amp; exit</button>
     </div>
   </section>
 
   <footer class="hint" id="hint">Pick a clef and answer mode above, then press Start.</footer>
+</div>
+
+<div class="overlay" id="hintOverlay" hidden>
+  <div class="hintcard">
+    <div class="hint-head">
+      <div>
+        <h2 id="hintTitle">Note names</h2>
+        <p class="hint-sub" id="hintSub"></p>
+      </div>
+      <button class="btn" type="button" id="hintClose">Close</button>
+    </div>
+    <div class="seg" id="hintTabs">
+      <button data-val="all" class="active">All positions</button>
+      <button data-val="split">Lines &amp; spaces</button>
+    </div>
+    <div id="hintBody"></div>
+    <div class="hint-key" id="hintKey"></div>
+  </div>
 </div>
 
 <div class="overlay" id="summaryOverlay" hidden>
@@ -971,11 +1031,13 @@
   }
 
   // The clef glyph sits with its left edge at `left - 38`, `top` = top staff line.
-  function drawClefGlyph(svg, clef, left, top){
+  function drawClefGlyph(svg, clef, left, top, sp){
     var clefFont = "'Apple Symbols','Segoe UI Symbol',serif";
+    sp = sp || STEP*2;                 // staff line spacing
+    var k = sp/(STEP*2);               // scale relative to the main staff
     var t = clef==='treble'
-      ? svgEl('text',{x:left-38,y:top+4*STEP*2-2,'font-size':64,class:'clef-glyph','font-family':clefFont})
-      : svgEl('text',{x:left-38,y:top+2*STEP*2+6,'font-size':34,class:'clef-glyph','font-family':clefFont});
+      ? svgEl('text',{x:left-38*k,y:top+4*sp-2*k,'font-size':64*k,class:'clef-glyph','font-family':clefFont})
+      : svgEl('text',{x:left-38*k,y:top+2*sp+6*k,'font-size':34*k,class:'clef-glyph','font-family':clefFont});
     t.textContent = clef==='treble' ? G_CLEF : F_CLEF;
     svg.appendChild(t);
   }
@@ -1105,6 +1167,9 @@
     graceDeadline: 0,
     wrongDeductions: 0,
     timeDeductions: 0,
+    hintDeduction: 0,
+    hintUsed: false,
+    hintMode: 'cost',
     running: false,
     awaitingAnswer: false,
     assignment: null
@@ -1207,6 +1272,10 @@
     if(v!=='listen') stopMic();
   });
   wireSeg('timerSeg', function(v){ state.timerSec = +v; });
+  wireSeg('hintSeg', function(v){
+    state.hintMode = v;
+    if(state.running) $('hintBtn').hidden = v==='off';
+  });
   wireSeg('sourceSeg', function(v){
     state.source = v;
     midiImport.hidden = v!=='midi';
@@ -1580,6 +1649,8 @@
     state.awaitingAnswer = true;
     state.wrongDeductions = 0;
     state.timeDeductions = 0;
+    state.hintDeduction = 0;
+    state.hintUsed = false;
     drawStaff(clef, note, svg, '');
     feedback.textContent = '\u00a0';
     feedback.className = 'feedback';
@@ -1595,7 +1666,7 @@
   // immediately; once the chosen time-per-note grace period elapses, each
   // further second also costs a point. At 0, Skip appears.
   function currentPoints(){
-    return Math.max(0, 10 - state.wrongDeductions - state.timeDeductions);
+    return Math.max(0, 10 - state.wrongDeductions - state.timeDeductions - state.hintDeduction);
   }
   function updatePointsDisplay(){
     var p = currentPoints();
@@ -1658,7 +1729,7 @@
     if(correct){
       state.correct++;
       state.totalPoints += pointsEarned;
-      if(state.wrongDeductions===0 && state.timeDeductions===0){
+      if(state.wrongDeductions===0 && state.timeDeductions===0 && state.hintDeduction===0){
         state.streak++;
         state.bestStreak = Math.max(state.bestStreak, state.streak);
       } else {
@@ -1727,6 +1798,7 @@
     runControls.hidden = !running;
     notegrid.hidden = !running || state.mode!=='click';
     pointswrap.hidden = !running;
+    $('hintBtn').hidden = !running || state.hintMode==='off';
     skipBtn.hidden = true;
     hint.textContent = running
       ? 'Name the note before your points run out.'
@@ -1909,6 +1981,140 @@
     judge(correct, null);
   }
 
+  /* ================= hint card ================= */
+  // Staff positions counted up from the bottom line: even = line, odd = space.
+  // Colour follows that split - lines blue, spaces green - and the mnemonics
+  // are the standard ones for each clef.
+  var HINTS = {
+    treble: {
+      name: 'Treble clef',
+      lines:  { letters:'E G B D F', mnem:'Every Good Boy Does Fine' },
+      spaces: { letters:'F A C E',   mnem:'They spell F-A-C-E' }
+    },
+    bass: {
+      name: 'Bass clef',
+      lines:  { letters:'G B D F A', mnem:'Good Boys Do Fine Always' },
+      spaces: { letters:'A C E G',   mnem:'All Cows Eat Grass' }
+    }
+  };
+
+  var HINT_SP = 20;        // line spacing on the hint staff
+  var HINT_HALF = HINT_SP/2;
+
+  function hintClef(){
+    if(state.currentClef) return state.currentClef;
+    return state.clef==='bass' ? 'bass' : 'treble';
+  }
+
+  // which: 'all' | 'lines' | 'spaces'
+  function buildHintStaff(clef, which, width){
+    var top = 30, bottomLineY = top + 4*HINT_SP, H = bottomLineY + 48;
+    var steps = [];
+    for(var st=0; st<=8; st++){
+      if(which==='all' || (which==='lines' && st%2===0) || (which==='spaces' && st%2!==0)) steps.push(st);
+    }
+    var x0 = 76, colW = Math.max(34, Math.min(48, (width - x0 - 24)/steps.length));
+    var W = x0 + steps.length*colW + 16;
+
+    var s = svgEl('svg',{viewBox:'0 0 '+W+' '+H, role:'img',
+      'aria-label':HINTS[clef].name + ' ' + (which==='all' ? 'note names' : which)});
+    s.style.width = '100%';
+    s.style.height = 'auto';
+
+    for(var i=0;i<5;i++){
+      var y = top + i*HINT_SP;
+      s.appendChild(svgEl('line',{x1:16,y1:y,x2:W-10,y2:y,class:'hint-staffline'}));
+    }
+    drawClefGlyph(s, clef, 54, top, HINT_SP);
+
+    steps.forEach(function(step, i){
+      var isLine = step%2===0;
+      var colour = isLine ? 'var(--note-line)' : 'var(--note-space)';
+      var x = x0 + i*colW + colW/2;
+      var y = bottomLineY - step*HINT_HALF;
+      var lf = letterFromDi(refFor(clef) + step);
+      s.appendChild(svgEl('ellipse',{cx:x,cy:y,rx:8.5,ry:6.5,fill:colour,
+        transform:'rotate(-18 '+x+' '+y+')'}));
+      var lab = svgEl('text',{x:x,y:H-14,'text-anchor':'middle',class:'hint-label',fill:colour});
+      lab.textContent = lf.letter;
+      s.appendChild(lab);
+    });
+    return s;
+  }
+
+  function keyRow(colour, title, letters, mnem){
+    var row = document.createElement('div');
+    row.className = 'keyitem';
+    var dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.style.background = colour;
+    row.appendChild(dot);
+    var txt = document.createElement('span');
+    txt.appendChild(document.createTextNode(title + ': '));
+    var b = document.createElement('b');
+    b.textContent = letters;
+    txt.appendChild(b);
+    txt.appendChild(document.createTextNode(' - ' + mnem));
+    row.appendChild(txt);
+    return row;
+  }
+
+  function renderHint(){
+    var clef = hintClef(), info = HINTS[clef];
+    var tab = $('hintTabs').querySelector('.active').getAttribute('data-val');
+    var body = $('hintBody'), key = $('hintKey');
+    body.innerHTML = ''; key.innerHTML = '';
+    $('hintTitle').textContent = info.name + ' note names';
+
+    if(tab==='all'){
+      $('hintSub').textContent = 'Every position on the staff, bottom to top.';
+      body.appendChild(buildHintStaff(clef, 'all', 520));
+      key.appendChild(keyRow('var(--note-line)', 'Lines', info.lines.letters, info.lines.mnem));
+      key.appendChild(keyRow('var(--note-space)', 'Spaces', info.spaces.letters, info.spaces.mnem));
+    } else {
+      $('hintSub').textContent = 'The lines and the spaces, one at a time.';
+      var split = document.createElement('div');
+      split.className = 'hint-split';
+      [['lines','Lines','var(--note-line)'], ['spaces','Spaces','var(--note-space)']].forEach(function(pair){
+        var part = info[pair[0]];
+        var half = document.createElement('div');
+        half.className = 'hint-half';
+        var h = document.createElement('h3');
+        h.textContent = 'The ' + pair[0];
+        h.style.color = pair[2];
+        var p = document.createElement('p');
+        p.textContent = part.mnem;
+        half.appendChild(h); half.appendChild(p);
+        half.appendChild(buildHintStaff(clef, pair[0], 250));
+        split.appendChild(half);
+      });
+      body.appendChild(split);
+    }
+  }
+
+  function openHint(){
+    if(state.hintMode==='off') return;
+    // The charge lands once per note, not once per opening.
+    if(state.hintMode==='cost' && !state.hintUsed && state.awaitingAnswer){
+      state.hintUsed = true;
+      state.hintDeduction = 2;
+      updatePointsDisplay();
+    }
+    renderHint();
+    $('hintOverlay').hidden = false;
+  }
+  function closeHint(){ $('hintOverlay').hidden = true; }
+
+  $('hintBtn').addEventListener('click', openHint);
+  $('hintClose').addEventListener('click', closeHint);
+  $('hintOverlay').addEventListener('click', function(e){
+    if(e.target === $('hintOverlay')) closeHint();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape' && !$('hintOverlay').hidden) closeHint();
+  });
+  wireSeg('hintTabs', function(){ renderHint(); });
+
   /* ================= teacher assignments ================= */
   // An assignment is a small JSON payload carried in the link's hash - no
   // server, no accounts. `app` lets sibling drill apps (chord trainer) read
@@ -1942,6 +2148,7 @@
     var fc = $('fretCode').value.trim(), fu = $('fretUrl').value.trim();
     if(fc && fu){ a.g = fc; a.gu = fu; }
     var st = $('studentFor').value.trim(), te = $('teacherEmail').value.trim();
+    a.h = state.hintMode;
     if(st) a.st = st;
     if(te) a.te = te;
     a.li = 'L' + Date.now().toString(36);   // lesson id, for the hub to read results back
@@ -2015,6 +2222,7 @@
     state.mode = a.m || 'click';    setSegValue('modeSeg', state.mode);
     state.timerSec = +a.s || 0;     setSegValue('timerSeg', String(state.timerSec));
     state.sessionLen = +a.n || 20;  sessionLenSel.value = String(state.sessionLen);
+    state.hintMode = a.h || 'cost';  setSegValue('hintSeg', state.hintMode);
     state.source = a.src==='custom' ? 'custom' : 'random';
     setSegValue('sourceSeg', state.source);
 
