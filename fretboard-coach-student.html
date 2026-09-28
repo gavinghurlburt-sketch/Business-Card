@@ -148,6 +148,29 @@
     background:transparent; border:2.5px solid var(--good); color:var(--good); box-shadow:none;
   }
 
+  /* live tuner */
+  .tuner-gauge{ max-width:320px; margin:22px auto 0; }
+  .tuner-gauge-track{
+    position:relative; height:14px; border-radius:8px;
+    background:linear-gradient(90deg,
+      var(--bad) 0%, var(--bad) 20%,
+      var(--accent) 20%, var(--accent) 42%,
+      var(--good) 42%, var(--good) 58%,
+      var(--accent) 58%, var(--accent) 80%,
+      var(--bad) 80%, var(--bad) 100%);
+  }
+  .tuner-gauge-zone{ position:absolute; left:42%; width:16%; top:-4px; bottom:-4px; border-left:2px dashed rgba(255,255,255,.65); border-right:2px dashed rgba(255,255,255,.65); }
+  .tuner-gauge-needle{
+    position:absolute; top:-8px; width:6px; height:30px; border-radius:3px;
+    background:var(--ink); left:50%; transform:translateX(-50%);
+    transition:left .06s linear, background .15s; box-shadow:0 2px 6px rgba(0,0,0,.3);
+  }
+  .tuner-gauge-needle.in-tune{ background:var(--good); }
+  .tuner-gauge-needle.flat{ background:var(--bad); }
+  .tuner-gauge-needle.sharp{ background:var(--bad); }
+  .tuner-gauge-labels{ display:flex; justify-content:space-between; font-size:11px; color:var(--ink-faint); font-weight:700; margin-top:6px; text-transform:uppercase; letter-spacing:.03em; }
+  .tuner-direction{ font-family:'Fraunces',serif; font-size:19px; font-weight:700; margin-top:18px; min-height:26px; }
+
   .stage{ max-width:640px; margin:0 auto; }
   .progress-track{ display:flex; gap:6px; margin:18px 0 28px; }
   .progress-dot{ flex:1; height:6px; border-radius:999px; background:var(--line); }
@@ -200,6 +223,7 @@
   function normalizeGuide(g){
     g.weightMode = g.weightMode==='position' ? 'position' : 'full';
     g.allowFingering = g.allowFingering!==false;
+    g.tuningCheck = !!g.tuningCheck;
     g.scales = (g.scales || []).map(sc=>({ positionMode:'closed', spanFrets:5, ...sc }));
     g.chords = (g.chords||[]).map(c=>{
       if(c.answers && c.answers.length) return c;
@@ -505,11 +529,12 @@
     }
     return null;
   }
-  function autoCorrelatePitch(buf, sampleRate){
+  function autoCorrelatePitch(buf, sampleRate, minRms){
     const SIZE = buf.length;
     let energy=0; for(let i=0;i<SIZE;i++) energy += buf[i]*buf[i];
     energy = energy/SIZE;
-    if(Math.sqrt(energy) < 0.006) return {freq:null, clarity:0};
+    const threshold = (minRms==null) ? 0.006 : minRms;
+    if(Math.sqrt(energy) < threshold) return {freq:null, clarity:0};
     const minLag = Math.max(2, Math.floor(sampleRate/400));
     const maxLag = Math.min(Math.floor(SIZE/2), Math.floor(sampleRate/70));
     let bestLag=-1, bestCorr=0;
@@ -523,8 +548,34 @@
     if(bestLag<=0) return {freq:null, clarity};
     return { freq: sampleRate/bestLag, clarity };
   }
+  // Single-pole low-pass, cascaded a few times for a steeper rolloff.
+  // A full strum rings all six strings at once; the higher strings are
+  // usually louder than the bass string and swamp a plain autocorrelation
+  // pitch detector, which then locks onto a treble string (or an octave/
+  // harmonic of it) instead of the bass note. Filtering out everything
+  // well above the expected bass frequency before correlating lets the
+  // detector "hear" mostly the string we actually care about.
+  function lowPassOnce(buf, sampleRate, cutoffHz){
+    const rc = 1/(2*Math.PI*cutoffHz);
+    const dt = 1/sampleRate;
+    const alpha = dt/(rc+dt);
+    const out = new Float32Array(buf.length);
+    let prev = buf.length ? buf[0] : 0;
+    for(let i=0;i<buf.length;i++){ prev = prev + alpha*(buf[i]-prev); out[i] = prev; }
+    return out;
+  }
+  function lowPassCascade(buf, sampleRate, cutoffHz, stages){
+    let cur = buf;
+    for(let s=0;s<(stages||3);s++) cur = lowPassOnce(cur, sampleRate, cutoffHz);
+    return cur;
+  }
   function analyzeStrumSamples(samples, sampleRate, expectedBassFreq){
-    const { freq, clarity } = autoCorrelatePitch(samples, sampleRate);
+    const cutoff = expectedBassFreq ? Math.min(380, expectedBassFreq*1.55) : 300;
+    const filtered = lowPassCascade(samples, sampleRate, cutoff, 3);
+    // The filter trims overall energy, especially when the bass string was
+    // struck softly relative to the rest of the chord, so gate on a lower
+    // RMS threshold than the unfiltered default.
+    const { freq, clarity } = autoCorrelatePitch(filtered, sampleRate, 0.0015);
     let bassMatch = null;
     if(freq && expectedBassFreq){
       const cents = 1200*Math.log2(freq/expectedBassFreq);
@@ -562,7 +613,7 @@
           const now = ctx.currentTime;
           if(collecting){
             for(let i=0;i<data.length;i++) sampleBuffer.push(data[i]);
-            if((now-collectStart) >= 0.22){
+            if((now-collectStart) >= 0.28){
               collecting = false;
               const r = analyzeStrumSamples(new Float32Array(sampleBuffer), ctx.sampleRate, expectedBassFreq);
               results.push(r);
@@ -601,6 +652,201 @@
     const bassMatches = results.filter(r=>r.bassMatch).length;
     const avgClarity = results.length ? results.reduce((s,r)=>s+r.clarity,0)/results.length : 0;
     return { count: results.length, bassMatches, avgClarity, heardPitch: withPitch.length };
+  }
+  function midiToFreq(midi){ return 440 * Math.pow(2, (midi-69)/12); }
+  // Single-pole high-pass, cascaded for a steeper rolloff. Used when
+  // listening note-by-note (scales, tuning check): the previous note is
+  // usually still ringing when the next one is played, and since we're
+  // always moving to a HIGHER pitch, filtering out everything below the
+  // midpoint between the two notes lets the detector "hear" the new note
+  // instead of getting confused by the old one's tail.
+  function highPassOnce(buf, sampleRate, cutoffHz){
+    const rc = 1/(2*Math.PI*cutoffHz);
+    const dt = 1/sampleRate;
+    const alpha = rc/(rc+dt);
+    const out = new Float32Array(buf.length);
+    let prevIn = buf.length ? buf[0] : 0, prevOut = 0;
+    for(let i=0;i<buf.length;i++){
+      const cur = alpha*(prevOut + buf[i]-prevIn);
+      out[i] = cur; prevOut = cur; prevIn = buf[i];
+    }
+    return out;
+  }
+  function highPassCascade(buf, sampleRate, cutoffHz, stages){
+    let cur = buf;
+    for(let s=0;s<(stages||2);s++) cur = highPassOnce(cur, sampleRate, cutoffHz);
+    return cur;
+  }
+  function centsBetween(f1, f2){
+    const c = 1200*Math.log2(f1/f2);
+    let folded = ((c % 1200)+1200)%1200;
+    if(folded>600) folded -= 1200;
+    return folded;
+  }
+  // Generic "listen for these notes in order" engine, shared by the scale
+  // pitch checker and the pre-chord tuning check. `steps` is an ordered
+  // list of {freq, label}. It waits for an onset, checks the pitch of what
+  // it hears against the CURRENT step; if that doesn't match but it does
+  // match the step we already passed, it assumes that's just the previous
+  // note still ringing out and keeps waiting rather than marking it wrong.
+  function createSequentialPitchListener({ steps, toleranceCents=70, stepTimeoutMs=7000, onStep, onDone, onError }){
+    let active = true, ctx, stream, source, processor, gain;
+    let quiet = true, baseline = 0.015, lastOnsetAt = -10;
+    let collecting = false, collectStart = 0, sampleBuffer = [];
+    let stepIndex = 0, lastAcceptedFreq = null, stepTimer = null;
+    const results = [];
+
+    if(!steps || !steps.length){
+      setTimeout(()=> onDone && onDone(results), 0);
+      return { stop(){} };
+    }
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      setTimeout(()=> onError && onError(new Error('unsupported')), 0);
+      return { stop(){} };
+    }
+    function armStepTimeout(){
+      clearTimeout(stepTimer);
+      stepTimer = setTimeout(()=>{
+        if(!active) return;
+        results.push({ step: steps[stepIndex], detectedFreq:null, cents:null, status:'timeout' });
+        onStep && onStep(stepIndex, 'timeout');
+        advanceStep();
+      }, stepTimeoutMs);
+    }
+    function advanceStep(){
+      stepIndex++;
+      if(stepIndex >= steps.length) finish();
+      else armStepTimeout();
+    }
+    navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } })
+      .then(strm=>{
+        if(!active){ strm.getTracks().forEach(t=>t.stop()); return; }
+        stream = strm;
+        ctx = new (window.AudioContext||window.webkitAudioContext)();
+        source = ctx.createMediaStreamSource(stream);
+        processor = ctx.createScriptProcessor(2048,1,1);
+        gain = ctx.createGain(); gain.gain.value = 0;
+        source.connect(processor); processor.connect(gain); gain.connect(ctx.destination);
+        armStepTimeout();
+        processor.onaudioprocess = (e)=>{
+          if(!active || stepIndex>=steps.length) return;
+          const data = e.inputBuffer.getChannelData(0);
+          let sum=0; for(let i=0;i<data.length;i++) sum += data[i]*data[i];
+          const rms = Math.sqrt(sum/data.length);
+          const now = ctx.currentTime;
+          if(collecting){
+            for(let i=0;i<data.length;i++) sampleBuffer.push(data[i]);
+            if((now-collectStart) >= 0.26){
+              collecting = false;
+              const raw = new Float32Array(sampleBuffer);
+              sampleBuffer = [];
+              const current = steps[stepIndex].freq;
+              const cutoff = lastAcceptedFreq ? Math.sqrt(lastAcceptedFreq*current) : null;
+              const filtered = cutoff ? highPassCascade(raw, ctx.sampleRate, cutoff, 2) : raw;
+              const { freq } = autoCorrelatePitch(filtered, ctx.sampleRate, 0.0015);
+              if(freq){
+                const centsToCurrent = centsBetween(freq, current);
+                const centsToPrev = lastAcceptedFreq!=null ? centsBetween(freq, lastAcceptedFreq) : null;
+                if(Math.abs(centsToCurrent) <= toleranceCents){
+                  results.push({ step: steps[stepIndex], detectedFreq:freq, cents:centsToCurrent, status:'correct' });
+                  lastAcceptedFreq = current;
+                  onStep && onStep(stepIndex, 'correct', centsToCurrent);
+                  advanceStep();
+                } else if(centsToPrev!=null && Math.abs(centsToPrev) <= toleranceCents){
+                  // still just hearing the previous note ring out — ignore, keep listening
+                } else {
+                  results.push({ step: steps[stepIndex], detectedFreq:freq, cents:centsToCurrent, status:'incorrect' });
+                  onStep && onStep(stepIndex, 'incorrect', centsToCurrent);
+                  advanceStep();
+                }
+              }
+            }
+            return;
+          }
+          if(!quiet && rms < baseline*1.6) quiet = true;
+          if(quiet && rms > Math.max(0.025, baseline*4.5) && (now-lastOnsetAt) > 0.35){
+            quiet = false; lastOnsetAt = now;
+            setTimeout(()=>{ if(active && !collecting){ collecting=true; collectStart=ctx.currentTime; sampleBuffer=[]; } }, 90);
+          }
+          if(quiet) baseline = baseline*0.98 + rms*0.02;
+        };
+      })
+      .catch(err=>{ onError && onError(err); });
+
+    function finish(){ stop(); onDone && onDone(results); }
+    function stop(){
+      active = false;
+      clearTimeout(stepTimer);
+      try{ processor && (processor.onaudioprocess = null); processor && processor.disconnect(); }catch(e){}
+      try{ source && source.disconnect(); }catch(e){}
+      try{ gain && gain.disconnect(); }catch(e){}
+      try{ stream && stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+      try{ ctx && ctx.state!=='closed' && ctx.close(); }catch(e){}
+    }
+    return { stop };
+  }
+  // A real, continuous tuner: unlike the sequential checkers above (which
+  // wait for one pluck per note), this watches the signal the whole time a
+  // string rings and requires it to sit within tolerance, uninterrupted,
+  // for `sustainMs` before moving on — so a lucky brief blip doesn't count.
+  function createLiveTuner({ steps, toleranceCents=8, sustainMs=1000, onUpdate, onStepDone, onDone, onError }){
+    let active = true, ctx, stream, source, processor, gain;
+    let stepIndex = 0, inTuneSince = null;
+    const results = [];
+
+    if(!steps || !steps.length){ setTimeout(()=> onDone && onDone(results), 0); return { stop(){} }; }
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      setTimeout(()=> onError && onError(new Error('unsupported')), 0);
+      return { stop(){} };
+    }
+    navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } })
+      .then(strm=>{
+        if(!active){ strm.getTracks().forEach(t=>t.stop()); return; }
+        stream = strm;
+        ctx = new (window.AudioContext||window.webkitAudioContext)();
+        source = ctx.createMediaStreamSource(stream);
+        processor = ctx.createScriptProcessor(2048,1,1);
+        gain = ctx.createGain(); gain.gain.value = 0;
+        source.connect(processor); processor.connect(gain); gain.connect(ctx.destination);
+        processor.onaudioprocess = (e)=>{
+          if(!active || stepIndex>=steps.length) return;
+          const data = e.inputBuffer.getChannelData(0);
+          const target = steps[stepIndex].freq;
+          const { freq, clarity } = autoCorrelatePitch(data, ctx.sampleRate, 0.004);
+          const now = ctx.currentTime*1000;
+          if(freq && clarity>0.3){
+            const cents = centsBetween(freq, target);
+            const inTune = Math.abs(cents) <= toleranceCents;
+            if(inTune){ if(inTuneSince==null) inTuneSince = now; }
+            else { inTuneSince = null; }
+            const heldMs = inTuneSince!=null ? (now-inTuneSince) : 0;
+            onUpdate && onUpdate({ stepIndex, freq, cents, inTune, heldMs, sustainMs });
+            if(heldMs >= sustainMs){
+              results.push({ step: steps[stepIndex], cents, status:'done' });
+              const doneIdx = stepIndex;
+              inTuneSince = null;
+              stepIndex++;
+              onStepDone && onStepDone(doneIdx);
+              if(stepIndex>=steps.length) finish();
+            }
+          } else {
+            inTuneSince = null;
+            onUpdate && onUpdate({ stepIndex, freq:null, cents:null, inTune:false, heldMs:0, sustainMs });
+          }
+        };
+      })
+      .catch(err=>{ onError && onError(err); });
+
+    function finish(){ stop(); onDone && onDone(results); }
+    function stop(){
+      active = false;
+      try{ processor && (processor.onaudioprocess = null); processor && processor.disconnect(); }catch(e){}
+      try{ source && source.disconnect(); }catch(e){}
+      try{ gain && gain.disconnect(); }catch(e){}
+      try{ stream && stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+      try{ ctx && ctx.state!=='closed' && ctx.close(); }catch(e){}
+    }
+    return { stop };
   }
 
   const ICON_LOGO = `<svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -649,6 +895,10 @@
             <button class="btn btn-ghost btn-sm" id="paste-btn">Paste from clipboard</button>
             <button class="btn btn-primary" id="start-code-btn" style="padding:12px 26px">Start practicing →</button>
           </div>
+          <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line)">
+            <p class="helper" style="margin-bottom:10px">Just need to get in tune first?</p>
+            <button class="btn btn-ghost btn-sm" id="tuner-entry-btn">\u{1F3B8} Open the tuner</button>
+          </div>
         </div></div>`;
       bind();
     }
@@ -671,7 +921,120 @@
           render();
         }
       });
+      document.getElementById('tuner-entry-btn').addEventListener('click', ()=> runTunerApp());
     }
+    render();
+  }
+
+  /* ================= TUNER ================= */
+  function runTunerApp(){
+    const STEPS = [0,1,2,3,4,5].map(i=>({ freq: OPEN_FREQ[i], label: STRING_NAMES[i], fullLabel: STRING_START_LABELS[i] }));
+    const state = { status:'idle', stepIndex:0, error:null, controller:null };
+
+    function stop(){ if(state.controller){ state.controller.stop(); state.controller=null; } }
+
+    function topbar(){
+      return `<div class="topbar"><div class="brand">${ICON_LOGO}<div><div class="brand-name">Fretboard Coach</div>
+        <div class="brand-sub">Tuner</div></div></div>
+        <button class="btn btn-ghost btn-sm" id="tuner-back-btn">← Back</button>
+        </div>`;
+    }
+
+    function render(){
+      root.innerHTML = topbar() + '<div class="wrap"><div class="stage">' + screenHTML() + '</div></div>';
+      bind();
+    }
+
+    function screenHTML(){
+      const cur = STEPS[state.stepIndex];
+      const dots = STEPS.map((s,i)=>`<div class="progress-dot ${i<state.stepIndex?'done':i===state.stepIndex?'current':''}"></div>`).join('');
+      let action;
+      if(state.status==='idle'){
+        action = `<p class="helper" style="max-width:40ch;margin:0 auto 16px">We'll go string by string, starting with the low E. Pluck a string and let it ring — once it's steady and in tune for a full second, we'll move to the next one.</p>
+          <button class="btn btn-accent" id="tuner-start-btn">\u{1F3B8} Start tuning</button>`;
+      } else if(state.status==='error'){
+        action = `<div class="banner banner-accent" style="text-align:left;max-width:420px;margin:0 auto">${esc(state.error)}</div>
+          <button class="btn btn-ghost btn-sm" id="tuner-start-btn" style="margin-top:12px">Try again</button>`;
+      } else if(state.status==='done'){
+        action = `<div class="banner banner-felt" style="max-width:420px;margin:0 auto">All six strings are in tune. Nice!</div>
+          <button class="btn btn-ghost btn-sm" id="tuner-start-btn" style="margin-top:14px">Tune again</button>`;
+      } else {
+        action = `
+          <div class="tuner-gauge" id="tuner-gauge">
+            <div class="tuner-gauge-track">
+              <div class="tuner-gauge-zone"></div>
+              <div class="tuner-gauge-needle" id="tuner-needle"></div>
+            </div>
+            <div class="tuner-gauge-labels"><span>flat</span><span>in tune</span><span>sharp</span></div>
+          </div>
+          <div id="tuner-direction" class="tuner-direction">Pluck the ${esc(cur.fullLabel)} string, open, and let it ring</div>
+          <div style="height:8px;border-radius:5px;background:var(--surface-2);overflow:hidden;max-width:220px;margin:14px auto 0">
+            <div id="tuner-hold-fill" style="height:100%;width:0%;background:var(--good)"></div>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="tuner-cancel-btn" style="margin-top:16px">Cancel</button>`;
+      }
+      return `
+        <div style="text-align:center;padding-top:18px">
+          <div class="eyebrow">Tuner</div>
+          <h1 style="margin-top:8px;font-size:clamp(24px,5vw,32px)">${state.status==='listening'?esc(cur.label):'Tune up'}</h1>
+          <div class="progress-track" style="max-width:280px;margin:14px auto 22px">${dots}</div>
+          ${action}
+        </div>`;
+    }
+
+    function bind(){
+      const backBtn = document.getElementById('tuner-back-btn');
+      if(backBtn) backBtn.addEventListener('click', ()=>{ stop(); runEntryScreen(); });
+      const startBtn = document.getElementById('tuner-start-btn');
+      if(startBtn) startBtn.addEventListener('click', start);
+      const cancelBtn = document.getElementById('tuner-cancel-btn');
+      if(cancelBtn) cancelBtn.addEventListener('click', ()=>{ stop(); state.status='idle'; render(); });
+    }
+
+    function start(){
+      state.status='listening'; state.stepIndex=0; state.error=null;
+      render();
+      state.controller = createLiveTuner({
+        steps: STEPS,
+        toleranceCents: 8,
+        sustainMs: 1000,
+        onUpdate(u){
+          const needle = document.getElementById('tuner-needle');
+          const fill = document.getElementById('tuner-hold-fill');
+          const dirEl = document.getElementById('tuner-direction');
+          if(!needle) return; // screen moved on since this frame fired
+          if(u.freq==null){
+            needle.style.left = '50%';
+            needle.className = 'tuner-gauge-needle';
+            if(dirEl) dirEl.textContent = `Pluck the ${STEPS[u.stepIndex].fullLabel} string, open, and let it ring`;
+            if(fill) fill.style.width = '0%';
+            return;
+          }
+          const clamped = Math.max(-50, Math.min(50, u.cents));
+          needle.style.left = (50+clamped) + '%';
+          needle.className = 'tuner-gauge-needle ' + (u.inTune ? 'in-tune' : (u.cents>0 ? 'sharp' : 'flat'));
+          if(dirEl){
+            if(u.inTune) dirEl.textContent = 'In tune — hold it there';
+            else dirEl.textContent = u.cents>0 ? '▼ Tune down — it\'s a bit sharp' : '▲ Tune up — it\'s a bit flat';
+          }
+          if(fill) fill.style.width = Math.min(100, Math.round((u.heldMs/u.sustainMs)*100)) + '%';
+        },
+        onStepDone(stepIndex){
+          state.stepIndex = stepIndex+1;
+          render();
+        },
+        onDone(){ state.status='done'; state.controller=null; render(); },
+        onError(err){
+          state.status='error'; state.controller=null;
+          if(err && err.name==='NotAllowedError') state.error = "Microphone access was blocked. Check your browser's site permissions and allow the microphone, then try again.";
+          else if(err && err.name==='NotFoundError') state.error = "No microphone was found on this device.";
+          else if(err && err.message==='unsupported') state.error = "This browser can't access the microphone here.";
+          else state.error = "Couldn't start the microphone — check your permissions and try again.";
+          render();
+        }
+      });
+    }
+
     render();
   }
 
@@ -683,17 +1046,39 @@
     const items = chordItems.concat(scaleItems);
     const weightMode = guide.weightMode || 'full';
     const allowFingering = guide.allowFingering!==false;
+    const tuningCheckEnabled = !!guide.tuningCheck;
+
+    function freshMicEntry(it){
+      if(it.kind==='chord') return {status:'idle', progress:{strumsDetected:0,level:0}, results:null, error:null, controller:null, showBreakdown:false};
+      return {status:'idle', progress:{stepIndex:0, total: it.gen.notes.length}, results:null, error:null, controller:null, stepStatuses:[]};
+    }
+    function freshTuning(){
+      return {status:'idle', progress:{stepIndex:0,total:0}, results:null, error:null, controller:null, stepStatuses:[], steps:[]};
+    }
 
     const state = {
       screen: items.length ? 'intro' : 'intro', current: 0,
       guesses: items.map(it => it.kind==='chord' ? blankStrings() : []),
       results: items.map(()=>null),
-      mic: items.map(it => it.kind==='chord' ? {status:'idle', progress:{strumsDetected:0,level:0}, results:null, error:null, controller:null} : null),
+      mic: items.map(freshMicEntry),
+      tuning: freshTuning(),
       shownScaleIntro: false,
     };
     function stopMic(idx){
       const m = state.mic[idx];
       if(m && m.controller){ m.controller.stop(); m.controller=null; }
+    }
+    function stopTuning(){
+      if(state.tuning.controller){ state.tuning.controller.stop(); state.tuning.controller=null; }
+    }
+    // Which strings should ring for this chord (used to decide what to
+    // pluck during the tuning check) — based on the chord's first/default
+    // answer variant, since that's the one shown before any attempt.
+    function unmutedStringsFor(chord){
+      const strings = chord.answers[0].strings;
+      const out = [];
+      for(let i=0;i<6;i++) if(strings[i].type!=='mute') out.push(i);
+      return out;
     }
 
     function topbar(){
@@ -711,6 +1096,7 @@
     function screenHTML(){
       if(state.screen==='intro') return introHTML();
       if(state.screen==='scaleintro') return scaleIntroHTML();
+      if(state.screen==='tuningcheck') return tuningCheckHTML();
       if(state.screen==='practice') return practiceHTML();
       if(state.screen==='summary') return summaryHTML();
       return '';
@@ -730,6 +1116,7 @@
           </p>
           <div class="banner banner-felt" style="text-align:left;max-width:440px;margin:22px auto 0">
             ${chordCount ? `<strong>Chords:</strong><br/>
+            ${tuningCheckEnabled ? `• Before each chord, a quick tuning check — pluck each string, open, so we can tell you if any are flat or sharp.<br/>` : ''}
             • Tap a fret box to add a finger dot${allowFingering ? ` &mdash; <strong>click the dot again to change its finger number</strong> (cycles 1→4→blank)` : ''}.<br/>
             • Tap the letter above a string to mark it <strong>O</strong> (open) or <strong>X</strong> (muted).<br/>
             • Some chords accept more than one correct way to play them — either is fine.<br/>
@@ -737,7 +1124,7 @@
             ${!allowFingering ? `<strong>Grading:</strong> finger placement and open/mute marks count toward your score.<br/>`
               : weightMode==='position' ? `<strong>Grading:</strong> finger placement is what counts toward your score. Open/mute marks and fingering are extra credit only.<br/>`
               : `<strong>Grading:</strong> finger placement, open/mute marks, and fingering all count toward your score.<br/>`}
-            ${scaleCount ? `<strong>Scales:</strong> come after the chords — tap the right notes on the fretboard (any string works), then tap a note again to mark it as the root. Order doesn't matter, and you won't shift your hand position.` : ''}
+            ${scaleCount ? `<strong>Scales:</strong> come after the chords — tap the right notes on the fretboard (any string works), then tap a note again to mark it as the root. Order doesn't matter, and you won't shift your hand position. You can also play them into the mic instead of tapping.` : ''}
           </div>
           <button class="btn btn-primary" id="start-btn" style="margin-top:26px;padding:13px 26px;font-size:15.5px">Start practicing →</button>
         </div>`;
@@ -755,6 +1142,46 @@
             Tap a fret box to place a note — tap it again to mark it as the root note, tap once more to remove it. The order you tap doesn't matter, and any string works as long as it's the right note.
           </div>
           <button class="btn btn-primary" id="start-scales-btn" style="margin-top:24px;padding:13px 26px;font-size:15.5px">Let's go →</button>
+        </div>`;
+    }
+
+    function tuningCheckHTML(){
+      const chord = items[state.current].data;
+      const t = state.tuning;
+      if(!t.steps.length) t.steps = unmutedStringsFor(chord).map(i=>({ freq: OPEN_FREQ[i], label: STRING_NAMES[i], stringIdx:i }));
+      const rows = t.steps.map((st,i)=>{
+        const detail = t.stepStatuses[i];
+        let note = '—', color = 'var(--ink-faint)';
+        if(detail && detail.status==='correct'){ note = 'In tune ✓'; color = 'var(--good)'; }
+        else if(detail && detail.status==='incorrect'){ note = detail.cents>0 ? 'A bit sharp' : 'A bit flat'; color = 'var(--accent)'; }
+        else if(detail && detail.status==='timeout'){ note = "Didn't catch that"; color = 'var(--accent)'; }
+        else if(t.status==='listening' && i===t.progress.stepIndex){ note = 'Listening…'; color = 'var(--felt-ink)'; }
+        return `<div class="summary-row"><span class="name">${esc(STRING_START_LABELS[st.stringIdx])}</span><span class="pct" style="color:${color}">${note}</span></div>`;
+      }).join('');
+      let action;
+      if(t.status==='idle'){
+        action = `<button class="btn btn-accent" id="tuning-start-btn">\u{1F3A4} Start tuning check</button>`;
+      } else if(t.status==='listening'){
+        const cur = t.steps[t.progress.stepIndex];
+        action = `<p class="helper" id="tuning-status-text">Pluck the ${cur?esc(STRING_START_LABELS[cur.stringIdx]):''} string, open, and let it ring out.</p>
+          <button class="btn btn-ghost btn-sm" id="tuning-cancel-btn">Cancel</button>`;
+      } else if(t.status==='error'){
+        action = `<div class="banner banner-accent" style="text-align:left">${esc(t.error)}</div>
+          <button class="btn btn-ghost btn-sm" id="tuning-start-btn" style="margin-top:12px">Try again</button>`;
+      } else {
+        action = `<button class="btn btn-ghost btn-sm" id="tuning-start-btn">Check again</button>`;
+      }
+      return `
+        <div style="text-align:center;padding-top:18px">
+          <div class="eyebrow">Before you strum</div>
+          <h1 style="margin-top:8px;font-size:clamp(24px,5vw,32px)">Quick tuning check</h1>
+          <p style="color:var(--ink-soft);margin-top:8px;max-width:46ch;margin-left:auto;margin-right:auto">Pluck each string below, open, one at a time — we'll tell you if any sound flat or sharp before you strum ${esc(chord.name)}.</p>
+          <div class="summary-list" style="max-width:360px;margin:18px auto 0">${rows}</div>
+          <div style="margin-top:18px">${action}</div>
+          <div class="center-actions" style="margin-top:18px">
+            <button class="btn btn-ghost btn-sm" id="tuning-skip-btn">Skip this time</button>
+            ${t.status==='done' ? `<button class="btn btn-primary" id="tuning-continue-btn">Continue to chord →</button>` : ''}
+          </div>
         </div>`;
     }
 
@@ -813,6 +1240,7 @@
         if(!result){
           html += `<p class="helper" style="text-align:center">${guess.length} of ${gen.notes.length} notes placed. Tap a note again to mark it as the root.</p>`;
         }
+        if(!result) html += scaleMicPanelHTML(idx);
         html += `<div class="legend">
           <span><span class="swatch" style="background:var(--felt)"></span>your note</span>
           <span><span class="swatch" style="background:var(--accent);color:#2A1E06"></span>root you marked</span>
@@ -861,13 +1289,18 @@
           <button class="btn btn-ghost btn-sm" id="mic-start-btn" style="margin-top:12px">Try again</button>`;
       } else if(m.status==='done'){
         const summ = summarizeStrums(m.results);
+        const bassRate = summ.count ? summ.bassMatches/summ.count : 0;
+        const overallMic = summ.count ? (bassRate*0.6 + summ.avgClarity*0.4) : 0;
         const clarityPct = pct(summ.avgClarity);
-        const clarityLabel = clarityPct>=70 ? 'Clean & clear' : clarityPct>=40 ? 'A little buzzy' : 'Hard to hear clearly';
-        inner = `<div class="score-row">
-            <div class="score-chip ${summ.bassMatches>=4?'good':summ.bassMatches>=2?'warn':'bad'}"><div class="num">${summ.bassMatches}/5</div><div class="lbl">Bass note on pitch</div></div>
-            <div class="score-chip ${clarityPct>=70?'good':clarityPct>=40?'warn':'bad'}"><div class="num">${clarityPct}%</div><div class="lbl">${esc(clarityLabel)}</div></div>
+        inner = `<div class="score-chip ${gradeClass(overallMic)}" style="max-width:170px;margin:0 auto 10px">
+            <div class="num">${pct(overallMic)}%</div><div class="lbl">Strum score</div>
           </div>
-          <p class="helper">Heard a clear pitch on ${summ.heardPitch}/5 strums. This checks your bass note and tone — it doesn't verify every finger, that's what the chart above is for.</p>
+          <button class="btn btn-ghost btn-sm" id="mic-breakdown-toggle">${m.showBreakdown?'Hide':'Show'} breakdown</button>
+          ${m.showBreakdown ? `<div class="score-row" style="margin-top:12px">
+              <div class="score-chip ${summ.bassMatches>=4?'good':summ.bassMatches>=2?'warn':'bad'}"><div class="num">${summ.bassMatches}/${summ.count}</div><div class="lbl">Bass note on pitch</div></div>
+              <div class="score-chip ${clarityPct>=60?'good':clarityPct>=35?'warn':'bad'}"><div class="num">${clarityPct}%</div><div class="lbl">Tone clarity</div></div>
+            </div>` : ''}
+          <p class="helper" style="margin-top:10px">Heard a clear pitch on ${summ.heardPitch}/${summ.count} strums. This checks your bass note and tone — it doesn't verify every finger, that's what the chart above is for. Tone clarity is a rough read from the mic, not a precise buzz detector — don't put too much weight on it alone.</p>
           <button class="btn btn-ghost btn-sm" id="mic-start-btn">Strum again</button>`;
       } else {
         inner = `<p class="helper" style="margin:0 0 12px">Play this chord 5 times, clearly, one strum at a time — we'll check your bass note and how clean it rings. (Bonus — not required.)</p>
@@ -876,6 +1309,36 @@
       return `<div class="panel" style="margin-top:20px;text-align:center">
         <div class="eyebrow">Bonus</div>
         <h3 style="font-family:'Fraunces',serif;font-size:16px;margin-top:4px">Strum it for real</h3>
+        ${inner}
+      </div>`;
+    }
+
+    function scaleMicPanelHTML(idx){
+      const m = state.mic[idx];
+      const total = m.progress.total;
+      let inner = '';
+      if(m.status==='listening'){
+        const n = Math.min(m.progress.stepIndex, total-1);
+        const doneCount = m.stepStatuses.length;
+        inner = `<p class="helper" style="margin:0 0 10px" id="scale-mic-status-text">Note ${Math.min(n+1,total)} of ${total} — play it now, one note at a time.</p>
+          <div class="progress-track" style="max-width:320px;margin:0 auto;flex-wrap:wrap" id="scale-mic-dots">
+            ${Array.from({length:total},(_,i)=>`<div class="progress-dot ${i<doneCount?'done':''}"></div>`).join('')}
+          </div>
+          <button class="btn btn-ghost btn-sm" id="scale-mic-cancel-btn" style="margin-top:14px">Cancel</button>`;
+      } else if(m.status==='error'){
+        inner = `<div class="banner banner-accent" style="text-align:left">${esc(m.error)}</div>
+          <button class="btn btn-ghost btn-sm" id="scale-mic-start-btn" style="margin-top:12px">Try again</button>`;
+      } else if(m.status==='done'){
+        const correctCount = m.stepStatuses.filter(s=>s==='correct').length;
+        inner = `<p class="helper" style="margin:0 0 10px">Heard ${correctCount} of ${total} notes correctly and filled them in above — check them over, add anything missed by tapping, then hit Check my answer.</p>
+          <button class="btn btn-ghost btn-sm" id="scale-mic-start-btn">Play it again</button>`;
+      } else {
+        inner = `<p class="helper" style="margin:0 0 12px">Or play it instead of tapping — we'll listen for each note in order and fill in the ones we hear.</p>
+          <button class="btn btn-accent btn-sm" id="scale-mic-start-btn">\u{1F3A4} Play the scale</button>`;
+      }
+      return `<div class="panel" style="margin-top:18px;text-align:center">
+        <div class="eyebrow">Optional</div>
+        <h3 style="font-family:'Fraunces',serif;font-size:16px;margin-top:4px">Play it for real</h3>
         ${inner}
       </div>`;
     }
@@ -922,7 +1385,9 @@
 
       const startBtn = document.getElementById('start-btn');
       if(startBtn) startBtn.addEventListener('click', ()=>{
-        state.screen = (items[0] && items[0].kind==='scale') ? 'scaleintro' : 'practice';
+        const first = items[0];
+        if(first && first.kind==='chord' && tuningCheckEnabled){ state.tuning = freshTuning(); state.screen = 'tuningcheck'; }
+        else state.screen = (first && first.kind==='scale') ? 'scaleintro' : 'practice';
         render();
       });
       const startScalesBtn = document.getElementById('start-scales-btn');
@@ -967,8 +1432,9 @@
         if(state.current < items.length-1){
           const wasChord = items[state.current].kind==='chord';
           state.current++;
-          const nowScale = items[state.current].kind==='scale';
-          state.screen = (wasChord && nowScale) ? 'scaleintro' : 'practice';
+          const nowItem = items[state.current];
+          if(nowItem.kind==='chord' && tuningCheckEnabled){ state.tuning = freshTuning(); state.screen = 'tuningcheck'; }
+          else state.screen = (wasChord && nowItem.kind==='scale') ? 'scaleintro' : 'practice';
           render();
         }
         else { state.screen = 'summary'; render(); }
@@ -976,10 +1442,14 @@
       const restartBtn = document.getElementById('restart-btn');
       if(restartBtn) restartBtn.addEventListener('click', ()=>{
         state.mic.forEach((m,i)=>stopMic(i));
-        state.current=0; state.screen = items[0] && items[0].kind==='scale' ? 'scaleintro' : 'practice';
+        stopTuning();
+        state.current=0;
+        const first = items[0];
+        state.screen = (first && first.kind==='chord' && tuningCheckEnabled) ? 'tuningcheck' : (first && first.kind==='scale' ? 'scaleintro' : 'practice');
         state.guesses = items.map(x=> x.kind==='chord' ? blankStrings() : []);
         state.results = items.map(()=>null);
-        state.mic = items.map(x=> x.kind==='chord' ? {status:'idle', progress:{strumsDetected:0,level:0}, results:null, error:null, controller:null} : null);
+        state.mic = items.map(freshMicEntry);
+        state.tuning = freshTuning();
         render();
       });
 
@@ -989,7 +1459,7 @@
         const chord = items[idx].data;
         const m = state.mic[idx];
         const matched = state.results[idx] ? state.results[idx].matchedAnswer : chord.answers[0].strings;
-        m.status='listening'; m.progress={strumsDetected:0,level:0}; m.results=null; m.error=null;
+        m.status='listening'; m.progress={strumsDetected:0,level:0}; m.results=null; m.error=null; m.showBreakdown=false;
         render();
         const bassFreq = chordBassFreq(matched);
         m.controller = createStrumListener({
@@ -1022,6 +1492,97 @@
       if(micCancelBtn) micCancelBtn.addEventListener('click', ()=>{
         stopMic(state.current);
         state.mic[state.current].status='idle';
+        render();
+      });
+      const micBreakdownToggle = document.getElementById('mic-breakdown-toggle');
+      if(micBreakdownToggle) micBreakdownToggle.addEventListener('click', ()=>{
+        const m = state.mic[state.current];
+        m.showBreakdown = !m.showBreakdown;
+        render();
+      });
+
+      const scaleMicStartBtn = document.getElementById('scale-mic-start-btn');
+      if(scaleMicStartBtn) scaleMicStartBtn.addEventListener('click', ()=>{
+        const idx = state.current;
+        const gen = items[idx].gen;
+        const m = state.mic[idx];
+        const steps = gen.notes.map(n=>({ freq: midiToFreq(n.pitch), label: noteNameForPitch(n.pitch) }));
+        m.status='listening'; m.progress={stepIndex:0, total:steps.length}; m.results=null; m.error=null; m.stepStatuses=[];
+        render();
+        m.controller = createSequentialPitchListener({
+          steps,
+          onStep(stepIndex, status){
+            m.stepStatuses[stepIndex] = status;
+            m.progress = { stepIndex: stepIndex+1, total: steps.length };
+            if(status==='correct'){
+              const expected = gen.notes[stepIndex];
+              const guess = state.guesses[idx];
+              const existing = guess.find(g=>g.string===expected.string && g.fret===expected.fret);
+              if(!existing) guess.push({ string:expected.string, fret:expected.fret, pitch:expected.pitch, isRoot:expected.isRoot });
+            }
+            render();
+          },
+          onDone(results){ m.status='done'; m.results=results; m.controller=null; render(); },
+          onError(err){
+            m.status='error'; m.controller=null;
+            if(err && err.name==='NotAllowedError') m.error = "Microphone access was blocked. Check your browser's site permissions and allow the microphone, then try again.";
+            else if(err && err.name==='NotFoundError') m.error = "No microphone was found on this device.";
+            else if(err && err.message==='unsupported') m.error = "This browser can't access the microphone here.";
+            else m.error = "Couldn't start the microphone — you can keep tapping the notes instead.";
+            render();
+          }
+        });
+      });
+      const scaleMicCancelBtn = document.getElementById('scale-mic-cancel-btn');
+      if(scaleMicCancelBtn) scaleMicCancelBtn.addEventListener('click', ()=>{
+        stopMic(state.current);
+        state.mic[state.current].status='idle';
+        render();
+      });
+
+      const tuningStartBtn = document.getElementById('tuning-start-btn');
+      if(tuningStartBtn) tuningStartBtn.addEventListener('click', ()=>{
+        const chord = items[state.current].data;
+        const t = state.tuning;
+        if(!t.steps.length) t.steps = unmutedStringsFor(chord).map(i=>({ freq: OPEN_FREQ[i], label: STRING_NAMES[i], stringIdx:i }));
+        t.stepStatuses = []; t.progress = {stepIndex:0, total:t.steps.length};
+        t.status='listening'; t.results=null; t.error=null;
+        render();
+        t.controller = createSequentialPitchListener({
+          steps: t.steps,
+          onStep(stepIndex, status, cents){
+            t.stepStatuses[stepIndex] = { status, cents };
+            t.progress = { stepIndex: stepIndex+1, total: t.steps.length };
+            render();
+          },
+          onDone(results){ t.status='done'; t.results=results; t.controller=null; render(); },
+          onError(err){
+            t.status='error'; t.controller=null;
+            if(err && err.name==='NotAllowedError') t.error = "Microphone access was blocked. Check your browser's site permissions and allow the microphone, then try again.";
+            else if(err && err.name==='NotFoundError') t.error = "No microphone was found on this device.";
+            else if(err && err.message==='unsupported') t.error = "This browser can't access the microphone here.";
+            else t.error = "Couldn't start the microphone — you can skip the tuning check and move on.";
+            render();
+          }
+        });
+      });
+      const tuningCancelBtn = document.getElementById('tuning-cancel-btn');
+      if(tuningCancelBtn) tuningCancelBtn.addEventListener('click', ()=>{
+        stopTuning();
+        state.tuning.status='idle';
+        render();
+      });
+      const tuningSkipBtn = document.getElementById('tuning-skip-btn');
+      if(tuningSkipBtn) tuningSkipBtn.addEventListener('click', ()=>{
+        stopTuning();
+        state.tuning = freshTuning();
+        state.screen = 'practice';
+        render();
+      });
+      const tuningContinueBtn = document.getElementById('tuning-continue-btn');
+      if(tuningContinueBtn) tuningContinueBtn.addEventListener('click', ()=>{
+        state.tuning = freshTuning();
+        state.screen = 'practice';
         render();
       });
     }
