@@ -144,7 +144,7 @@
   .scale-fret-labels span{ height:var(--cw,42px); display:flex; align-items:center; justify-content:flex-end; padding-right:4px; font-size:11px; color:var(--ink-faint); font-weight:700; white-space:nowrap; }
   .position-banner{ background:var(--felt-soft); color:var(--felt-ink); border-radius:10px; padding:10px 14px; font-size:13px; text-align:center; margin-top:12px; line-height:1.5; }
   .scale-nut{ height:9px; background:#ECDFC0; margin:0 3px; border-radius:2px; box-shadow:0 1px 2px rgba(0,0,0,.25), inset 0 -1px 2px rgba(0,0,0,.12); }
-  .scale-chart .dot:not(.correct):not(.incorrect):not(.warn):not(.root):not(.ghost){
+  .scale-chart .fret-row[data-fret-row="0"] .dot:not(.correct):not(.incorrect):not(.warn):not(.root):not(.ghost){
     background:transparent; border:2.5px solid var(--good); color:var(--good); box-shadow:none;
   }
 
@@ -186,6 +186,7 @@
   const STRING_NAMES = ["E","A","D","G","B","E"];
   const STRING_START_LABELS = ["Low E (6th string)","A (5th string)","D (4th string)","G (3rd string)","B (2nd string)","High E (1st string)"];
   const NOTE_NAMES = ['C','C#/Db','D','D#/Eb','E','F','F#/Gb','G','G#/Ab','A','A#/Bb','B'];
+  function noteNameForPitch(pitch){ return NOTE_NAMES[((pitch%12)+12)%12].split('/')[0]; }
   const FRETS = 4;
   function s(type, fret, finger){ return {type, fret: fret||null, finger: finger||null}; }
   function blankStrings(){ return Array.from({length:6}, ()=>s(null)); }
@@ -452,16 +453,16 @@
         const editable = mode==='input';
         html += `<button type="button" class="cell ${editable?'editable':'readonly'}" style="--cw:${cw}px;--ch:${cw}px" data-string="${i}" data-fret="${f}" data-pitch="${expected?expected.pitch:ABS_OPEN[i]+f}" ${editable?'':'disabled'}>`;
         if(mode==='answer' && expected){
-          html += `<span class="dot ${expected.isRoot?'root':''}">${expected.isRoot?'R':''}</span>`;
+          html += `<span class="dot ${expected.isRoot?'root':''}">${expected.isRoot?noteNameForPitch(expected.pitch):''}</span>`;
         } else if(mode==='input'){
-          if(guessed) html += `<span class="dot ${guessed.isRoot?'root':''}">${guessed.isRoot?'R':''}</span>`;
+          if(guessed) html += `<span class="dot ${guessed.isRoot?'root':''}">${guessed.isRoot?noteNameForPitch(guessed.pitch):''}</span>`;
         } else if(mode==='result'){
           const g = guessed ? attempt.perGuess.find(x=>x.string===i && x.fret===f) : null;
           const wasMissed = attempt.missed.some(m=>m.string===i && m.fret===f);
           if(g){
-            html += `<span class="dot ${g.status}">${g.isRoot?'R':''}</span>`;
+            html += `<span class="dot ${g.status}">${g.isRoot?noteNameForPitch(guessed.pitch):''}</span>`;
           } else if(wasMissed){
-            html += `<span class="dot ghost">${expected.isRoot?'R':''}</span>`;
+            html += `<span class="dot ghost">${expected.isRoot?noteNameForPitch(expected.pitch):''}</span>`;
           }
         }
         html += `</button>`;
