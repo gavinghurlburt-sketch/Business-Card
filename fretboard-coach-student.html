@@ -130,6 +130,7 @@
   .dot.correct{ background:var(--good); }
   .dot.incorrect{ background:var(--bad); }
   .dot.warn{ background:var(--accent); }
+  .dot.root{ background:var(--accent); color:#2A1E06; }
   .dot.ghost{ background:transparent; border:2px dashed var(--ink-faint); color:var(--ink-faint); }
   .head-btn.correct{ color:var(--good); }
   .head-btn.incorrect{ color:var(--bad); text-decoration:underline wavy; }
@@ -193,6 +194,7 @@
   }
   function normalizeGuide(g){
     g.weightMode = g.weightMode==='position' ? 'position' : 'full';
+    g.allowFingering = g.allowFingering!==false;
     g.scales = g.scales || [];
     g.chords = (g.chords||[]).map(c=>{
       if(c.answers && c.answers.length) return c;
@@ -262,16 +264,17 @@
     });
   }
 
-  function cycleCell(strings, stringIdx, fret){
+  function cycleCell(strings, stringIdx, fret, allowFingering){
     const st = strings[stringIdx];
     if(st.type==='fret' && st.fret===fret){
+      if(!allowFingering){ strings[stringIdx] = s(null); return; }
       const order = [1,2,3,4,null];
       const idx = order.indexOf(st.finger);
       const next = order[(idx+1)%order.length];
       if(next===null){ strings[stringIdx] = s(null); }
       else { strings[stringIdx] = s('fret', fret, next); }
     } else {
-      strings[stringIdx] = s('fret', fret, 1);
+      strings[stringIdx] = s('fret', fret, allowFingering ? 1 : null);
     }
   }
   function cycleHead(strings, stringIdx){
@@ -283,7 +286,7 @@
   }
 
   /* ---------------- scoring (chords) ---------------- */
-  function scoreChordVariant(answer, guess){
+  function scoreChordVariant(answer, guess, allowFingering){
     let posTotal=0, posCorrect=0, omTotal=0, omCorrect=0, fingerTotal=0, fingerCorrect=0;
     for(let i=0;i<6;i++){
       const a = answer[i], g = guess[i];
@@ -291,8 +294,10 @@
       const aFretted = a.type==='fret', gFretted = g.type==='fret';
       if(aFretted){
         if(gFretted && g.fret===a.fret) posCorrect++;
-        fingerTotal++;
-        if(gFretted && g.fret===a.fret && g.finger===a.finger) fingerCorrect++;
+        if(allowFingering){
+          fingerTotal++;
+          if(gFretted && g.fret===a.fret && g.finger===a.finger) fingerCorrect++;
+        }
       } else {
         if(!gFretted) posCorrect++;
         omTotal++;
@@ -304,19 +309,22 @@
     const fin = fingerTotal? fingerCorrect/fingerTotal : 1;
     return { pos, om, fin, posCorrect, posTotal, omCorrect, omTotal, fingerCorrect, fingerTotal, matchedAnswer:answer };
   }
-  function computeOverall(pos, om, fin, weightMode){
-    return weightMode==='position' ? pos : (pos*0.6 + om*0.2 + fin*0.2);
+  function computeOverall(pos, om, fin, weightMode, allowFingering){
+    if(weightMode==='position') return pos;
+    if(!allowFingering) return pos*0.75 + om*0.25;
+    return pos*0.6 + om*0.2 + fin*0.2;
   }
   // Picks the best-matching correct variant, then grades against it.
-  function scoreChord(answers, guess, weightMode){
+  function scoreChord(answers, guess, weightMode, allowFingering){
     let best = null, bestPick = -1;
     answers.forEach(v=>{
-      const r = scoreChordVariant(v.strings, guess);
-      const pick = r.pos*0.7 + r.om*0.15 + r.fin*0.15;
+      const r = scoreChordVariant(v.strings, guess, allowFingering);
+      const pick = allowFingering ? (r.pos*0.7 + r.om*0.15 + r.fin*0.15) : (r.pos*0.85 + r.om*0.15);
       if(!best || pick > bestPick){ best = r; bestPick = pick; }
     });
-    best.overall = computeOverall(best.pos, best.om, best.fin, weightMode);
+    best.overall = computeOverall(best.pos, best.om, best.fin, weightMode, allowFingering);
     best.weightMode = weightMode;
+    best.allowFingering = allowFingering;
     return best;
   }
   const pct = x => Math.round(x*100);
@@ -332,26 +340,27 @@
     let running = 0;
     for(let i=0;i<stepsCount;i++){ running += MAJOR_STEPS[i%7]; cumulative.push(running); }
     const startAbs = ABS_OPEN[startString] + startFret;
-    const notes = [{string:startString, fret:startFret, order:1}];
+    const notes = [{string:startString, fret:startFret, order:1, pitch:startAbs, isRoot:true}];
     let curString = startString;
     const winLo = startFret, winHi = startFret+4;
     for(let i=1;i<cumulative.length;i++){
       const targetAbs = startAbs + cumulative[i];
+      const isRoot = cumulative[i]%12===0;
       let placed = false;
       for(let str=curString; str<=5 && !placed; str++){
         const fret = targetAbs - ABS_OPEN[str];
-        if(fret>=winLo && fret<=winHi){ notes.push({string:str, fret, order:i+1}); curString=str; placed=true; }
+        if(fret>=winLo && fret<=winHi){ notes.push({string:str, fret, order:i+1, pitch:targetAbs, isRoot}); curString=str; placed=true; }
       }
       if(!placed){
         for(let str=curString; str<=5 && !placed; str++){
           const fret = targetAbs - ABS_OPEN[str];
-          if(fret>=0 && fret<=winHi+1){ notes.push({string:str, fret, order:i+1}); curString=str; placed=true; }
+          if(fret>=0 && fret<=winHi+1){ notes.push({string:str, fret, order:i+1, pitch:targetAbs, isRoot}); curString=str; placed=true; }
         }
       }
       if(!placed){
         for(let str=0; str<=5 && !placed; str++){
           const fret = targetAbs - ABS_OPEN[str];
-          if(fret>=0 && fret<=24){ notes.push({string:str, fret, order:i+1}); curString=str; placed=true; }
+          if(fret>=0 && fret<=24){ notes.push({string:str, fret, order:i+1, pitch:targetAbs, isRoot}); curString=str; placed=true; }
         }
       }
     }
@@ -360,13 +369,37 @@
   function scaleInstructions(sc){
     const data = generateScale(sc.root, sc.startString, sc.octaves);
     const posLabel = data.windowLo===data.windowHi ? `fret ${data.windowLo}` : `frets ${data.windowLo}–${data.windowHi}`;
-    return { text:`Play ${NOTE_NAMES[sc.root].split('/')[0]} Major ascending, ${sc.octaves===2?'two octaves':'one octave'}, starting on the ${STRING_START_LABELS[sc.startString]} string. Stay in one hand position (${posLabel}) — no shifting up or down the neck. Tap the notes on the diagram in the order you'd play them.`, data };
+    return { text:`Play ${NOTE_NAMES[sc.root].split('/')[0]} Major ascending, ${sc.octaves===2?'two octaves':'one octave'}, starting on the ${STRING_START_LABELS[sc.startString]} string. Stay in one hand position (${posLabel}) — no shifting up or down the neck. Any string works as long as it's the right note. Tap a note, then tap it again to mark it as the root (${NOTE_NAMES[sc.root].split('/')[0]}).`, data };
+  }
+  // Matches guessed notes to expected notes by PITCH, not by exact string/fret —
+  // playing the right note on a different (but still in-position) string counts.
+  function matchScaleAttempt(scaleData, guessNotes){
+    const pool = scaleData.notes.map((n,idx)=>({...n, idx, used:false}));
+    const perGuess = guessNotes.map(g=>{
+      let match = pool.find(p=>!p.used && p.string===g.string && p.fret===g.fret && p.pitch===g.pitch);
+      if(!match) match = pool.find(p=>!p.used && p.pitch===g.pitch);
+      if(match){
+        match.used = true;
+        const rootOk = (!!g.isRoot) === (!!match.isRoot);
+        return { ...g, status: rootOk ? 'correct' : 'warn', matchedIdx: match.idx };
+      }
+      return { ...g, status:'incorrect', matchedIdx:null };
+    });
+    const missed = pool.filter(p=>!p.used);
+    return { perGuess, missed };
+  }
+  function toggleScaleNote(guessNotes, string, fret, pitch){
+    const idx = guessNotes.findIndex(n=>n.string===string && n.fret===fret);
+    if(idx===-1){ guessNotes.push({string, fret, pitch, isRoot:false}); }
+    else if(!guessNotes[idx].isRoot){ guessNotes[idx].isRoot = true; }
+    else { guessNotes.splice(idx,1); }
   }
   function renderScaleChart(opts){
     const { scaleData, mode, guessNotes } = opts;
     const cw = opts.small ? 34 : 42;
     const rows = [];
     for(let f=scaleData.windowLo; f<=scaleData.windowHi; f++) rows.push(f);
+    const attempt = (mode==='result') ? matchScaleAttempt(scaleData, guessNotes) : null;
     let html = `<div class="chart-wrap"><div class="scale-board-row">`;
     html += `<div class="scale-fret-labels" style="--cw:${cw}px">`;
     rows.forEach(f=> html += `<span>${f===0?'Open':'Fret '+f}</span>`);
@@ -378,18 +411,18 @@
         const expected = scaleData.notes.find(n=>n.string===i && n.fret===f);
         const guessed = guessNotes ? guessNotes.find(n=>n.string===i && n.fret===f) : null;
         const editable = mode==='input';
-        html += `<button type="button" class="cell ${editable?'editable':'readonly'}" style="--cw:${cw}px;--ch:${cw}px" data-string="${i}" data-fret="${f}" ${editable?'':'disabled'}>`;
+        html += `<button type="button" class="cell ${editable?'editable':'readonly'}" style="--cw:${cw}px;--ch:${cw}px" data-string="${i}" data-fret="${f}" data-pitch="${expected?expected.pitch:ABS_OPEN[i]+f}" ${editable?'':'disabled'}>`;
         if(mode==='answer' && expected){
-          html += `<span class="dot">${expected.order}</span>`;
+          html += `<span class="dot ${expected.isRoot?'root':''}">${expected.isRoot?'R':''}</span>`;
         } else if(mode==='input'){
-          if(guessed) html += `<span class="dot">${guessed.order}</span>`;
+          if(guessed) html += `<span class="dot ${guessed.isRoot?'root':''}">${guessed.isRoot?'R':''}</span>`;
         } else if(mode==='result'){
-          if(expected && guessed){
-            html += `<span class="dot ${expected.order===guessed.order?'correct':'warn'}">${guessed.order}</span>`;
-          } else if(expected && !guessed){
-            html += `<span class="dot ghost">${expected.order}</span>`;
-          } else if(!expected && guessed){
-            html += `<span class="dot incorrect">${guessed.order}</span>`;
+          const g = guessed ? attempt.perGuess.find(x=>x.string===i && x.fret===f) : null;
+          const wasMissed = attempt.missed.some(m=>m.string===i && m.fret===f);
+          if(g){
+            html += `<span class="dot ${g.status}">${g.isRoot?'R':''}</span>`;
+          } else if(wasMissed){
+            html += `<span class="dot ghost">${expected.isRoot?'R':''}</span>`;
           }
         }
         html += `</button>`;
@@ -404,38 +437,21 @@
   }
   function attachScaleChartEvents(container, onCellClick){
     container.querySelectorAll('.cell.editable').forEach(btn=>{
-      btn.addEventListener('click', ()=> onCellClick(parseInt(btn.dataset.string), parseInt(btn.dataset.fret)));
+      btn.addEventListener('click', ()=> onCellClick(parseInt(btn.dataset.string), parseInt(btn.dataset.fret), parseInt(btn.dataset.pitch)));
     });
-  }
-  function toggleScaleNote(guessNotes, string, fret){
-    const idx = guessNotes.findIndex(n=>n.string===string && n.fret===fret);
-    if(idx>-1){
-      guessNotes.splice(idx,1);
-      guessNotes.forEach((n,i)=>{ n.order = i+1; });
-    } else {
-      guessNotes.push({string, fret, order: guessNotes.length+1});
-    }
   }
   function scoreScale(scaleData, guessNotes, weightMode){
     const total = scaleData.notes.length;
-    const expByKey = {};
-    scaleData.notes.forEach(n=>{ expByKey[n.string+'_'+n.fret] = n.order; });
-    let posCorrect=0, orderCorrect=0;
-    const matched = new Set();
-    guessNotes.forEach(g=>{
-      const key = g.string+'_'+g.fret;
-      if(expByKey[key]!=null && !matched.has(key)){
-        matched.add(key);
-        posCorrect++;
-        if(expByKey[key]===g.order) orderCorrect++;
-      }
-    });
+    const attempt = matchScaleAttempt(scaleData, guessNotes);
+    const posCorrect = attempt.perGuess.filter(g=>g.status!=='incorrect').length;
     const recall = total? posCorrect/total : 1;
     const precision = guessNotes.length? posCorrect/guessNotes.length : (total?0:1);
     const pos = total? (recall*0.7 + precision*0.3) : 1;
-    const ord = total? orderCorrect/total : 1;
-    const overall = weightMode==='position' ? pos : (pos*0.6 + ord*0.4);
-    return { pos, ord, overall, posCorrect, total, orderCorrect, weightMode };
+    const totalRoots = scaleData.notes.filter(n=>n.isRoot).length;
+    const rootCorrect = attempt.perGuess.filter(g=>g.status==='correct' && g.isRoot).length;
+    const rootScore = totalRoots? rootCorrect/totalRoots : 1;
+    const overall = weightMode==='position' ? pos : (pos*0.7 + rootScore*0.3);
+    return { pos, rootScore, overall, posCorrect, total, weightMode };
   }
 
   /* ---------------- mic strum check ---------------- */
@@ -626,6 +642,7 @@
     const scaleItems = (guide.scales||[]).map((sc,i)=>({ kind:'scale', data:sc, scaleIdx:i, gen: generateScale(sc.root, sc.startString, sc.octaves) }));
     const items = chordItems.concat(scaleItems);
     const weightMode = guide.weightMode || 'full';
+    const allowFingering = guide.allowFingering!==false;
 
     const state = {
       screen: items.length ? 'intro' : 'intro', current: 0,
@@ -673,12 +690,14 @@
           </p>
           <div class="banner banner-felt" style="text-align:left;max-width:440px;margin:22px auto 0">
             ${chordCount ? `<strong>Chords:</strong><br/>
-            • Tap a fret box to add a finger dot &mdash; <strong>click the dot again to change its finger number</strong> (cycles 1→4→blank).<br/>
+            • Tap a fret box to add a finger dot${allowFingering ? ` &mdash; <strong>click the dot again to change its finger number</strong> (cycles 1→4→blank)` : ''}.<br/>
             • Tap the letter above a string to mark it <strong>O</strong> (open) or <strong>X</strong> (muted).<br/>
             • Some chords accept more than one correct way to play them — either is fine.<br/>
             • After each chord, there's a bonus mic round — play it for real and we'll check the sound.<br/>` : ''}
-            ${weightMode==='position' ? `<strong>Grading:</strong> finger placement is what counts toward your score. Open/mute marks and fingering are extra credit only.<br/>` : `<strong>Grading:</strong> finger placement, open/mute marks, and fingering all count toward your score.<br/>`}
-            ${scaleCount ? `<strong>Scales:</strong> come after the chords — you'll tap the fretboard notes in order, ascending, without shifting your hand position.` : ''}
+            ${!allowFingering ? `<strong>Grading:</strong> finger placement and open/mute marks count toward your score.<br/>`
+              : weightMode==='position' ? `<strong>Grading:</strong> finger placement is what counts toward your score. Open/mute marks and fingering are extra credit only.<br/>`
+              : `<strong>Grading:</strong> finger placement, open/mute marks, and fingering all count toward your score.<br/>`}
+            ${scaleCount ? `<strong>Scales:</strong> come after the chords — tap the right notes on the fretboard (any string works), then tap a note again to mark it as the root. Order doesn't matter, and you won't shift your hand position.` : ''}
           </div>
           <button class="btn btn-primary" id="start-btn" style="margin-top:26px;padding:13px 26px;font-size:15.5px">Start practicing →</button>
         </div>`;
@@ -693,7 +712,7 @@
           <h1 style="margin-top:8px;font-size:clamp(24px,5vw,32px)">Time for scales!</h1>
           <div class="banner banner-felt" style="text-align:left;max-width:460px;margin:20px auto 0">
             <strong>What's expected:</strong><br/>${esc(instr.text)}<br/><br/>
-            Tap a fret box to place a note in the sequence — tap a placed note again to remove it. Numbers show the order you've tapped them.
+            Tap a fret box to place a note — tap it again to mark it as the root note, tap once more to remove it. The order you tap doesn't matter, and any string works as long as it's the right note.
           </div>
           <button class="btn btn-primary" id="start-scales-btn" style="margin-top:24px;padding:13px 26px;font-size:15.5px">Let's go →</button>
         </div>`;
@@ -716,7 +735,7 @@
         html += `<div class="chord-name-display">${esc(chord.name)}</div>`;
         if(chord.tip) html += `<div class="chord-note">${esc(chord.tip)}</div>`;
         html += `<div id="chart-slot" style="margin-top:18px">` + renderChart({strings:guess, mode, answer: result ? result.matchedAnswer : null}) + `</div>`;
-        if(!result){
+        if(!result && allowFingering){
           html += `<p class="helper" style="text-align:center">Click the dot again to change its finger number (cycles 1→4→blank).</p>`;
         }
         html += `<div class="legend">
@@ -735,7 +754,7 @@
           html += `<div class="score-row">
             <div class="score-chip ${gradeClass(result.pos)}"><div class="num">${pct(result.pos)}%</div><div class="lbl">Finger placement</div></div>
             <div class="score-chip ${gradeClass(result.om)}"><div class="num">${pct(result.om)}%</div><div class="lbl">Open / mute${bonusLabel}</div></div>
-            <div class="score-chip ${gradeClass(result.fin)}"><div class="num">${pct(result.fin)}%</div><div class="lbl">Fingering${bonusLabel}</div></div>
+            ${allowFingering ? `<div class="score-chip ${gradeClass(result.fin)}"><div class="num">${pct(result.fin)}%</div><div class="lbl">Fingering${bonusLabel}</div></div>` : ''}
           </div>`;
           html += `<div class="center-actions">
             <button class="btn btn-ghost btn-sm" id="retry-btn">Try again</button>
@@ -752,12 +771,13 @@
         html += `<div class="position-banner">${esc(instr.text)}</div>`;
         html += `<div id="chart-slot" style="margin-top:14px">` + renderScaleChart({scaleData:gen, mode, guessNotes:guess}) + `</div>`;
         if(!result){
-          html += `<p class="helper" style="text-align:center">${guess.length} of ${gen.notes.length} notes placed.</p>`;
+          html += `<p class="helper" style="text-align:center">${guess.length} of ${gen.notes.length} notes placed. Tap a note again to mark it as the root.</p>`;
         }
         html += `<div class="legend">
           <span><span class="swatch" style="background:var(--felt)"></span>your note</span>
-          <span><span class="swatch" style="background:var(--good)"></span>right note &amp; order</span>
-          <span><span class="swatch" style="background:var(--accent)"></span>right note, wrong order</span>
+          <span><span class="swatch" style="background:var(--accent);color:#2A1E06"></span>root you marked</span>
+          <span><span class="swatch" style="background:var(--good)"></span>right note</span>
+          <span><span class="swatch" style="background:var(--accent)"></span>right note, root mismarked</span>
           <span><span class="swatch" style="background:var(--bad)"></span>wrong note</span>
           <span><span class="swatch" style="background:transparent;border:2px dashed var(--ink-faint)"></span>missed note</span>
         </div>`;
@@ -770,7 +790,7 @@
           const bonusLabel = weightMode==='position' ? ' (bonus)' : '';
           html += `<div class="score-row">
             <div class="score-chip ${gradeClass(result.pos)}"><div class="num">${pct(result.pos)}%</div><div class="lbl">Right notes</div></div>
-            <div class="score-chip ${gradeClass(result.ord)}"><div class="num">${pct(result.ord)}%</div><div class="lbl">Correct order${bonusLabel}</div></div>
+            <div class="score-chip ${gradeClass(result.rootScore)}"><div class="num">${pct(result.rootScore)}%</div><div class="lbl">Roots identified${bonusLabel}</div></div>
           </div>`;
           html += `<div class="center-actions">
             <button class="btn btn-ghost btn-sm" id="retry-btn">Try again</button>
@@ -850,8 +870,8 @@
       let t = `${guide.student||'A student'} just finished "${guide.title}" — overall score ${pct(avg)}%.\n\n`;
       items.forEach((it,i)=>{
         const r = state.results[i];
-        if(it.kind==='chord') t += `${it.data.name}: ${pct(r.overall)}% (placement ${pct(r.pos)}%, open/mute ${pct(r.om)}%, fingering ${pct(r.fin)}%)\n`;
-        else t += `${it.data.name}: ${pct(r.overall)}% (right notes ${pct(r.pos)}%, order ${pct(r.ord)}%)\n`;
+        if(it.kind==='chord') t += `${it.data.name}: ${pct(r.overall)}% (placement ${pct(r.pos)}%, open/mute ${pct(r.om)}%${allowFingering ? `, fingering ${pct(r.fin)}%` : ''})\n`;
+        else t += `${it.data.name}: ${pct(r.overall)}% (right notes ${pct(r.pos)}%, roots identified ${pct(r.rootScore)}%)\n`;
       });
       return t;
     }
@@ -873,11 +893,11 @@
       if(slot && it && !state.results[state.current]){
         if(it.kind==='chord'){
           attachChartEvents(slot, state.guesses[state.current], {
-            onCellClick(i,f){ cycleCell(state.guesses[state.current], i, f); render(); },
+            onCellClick(i,f){ cycleCell(state.guesses[state.current], i, f, allowFingering); render(); },
             onHeadClick(i){ cycleHead(state.guesses[state.current], i); render(); }
           });
         } else {
-          attachScaleChartEvents(slot, (i,f)=>{ toggleScaleNote(state.guesses[state.current], i, f); render(); });
+          attachScaleChartEvents(slot, (i,f,p)=>{ toggleScaleNote(state.guesses[state.current], i, f, p); render(); });
         }
       }
       const clearBtn = document.getElementById('clear-btn');
@@ -889,7 +909,7 @@
       const checkBtn = document.getElementById('check-btn');
       if(checkBtn) checkBtn.addEventListener('click', ()=>{
         if(it.kind==='chord'){
-          state.results[state.current] = scoreChord(it.data.answers, state.guesses[state.current], weightMode);
+          state.results[state.current] = scoreChord(it.data.answers, state.guesses[state.current], weightMode, allowFingering);
         } else {
           state.results[state.current] = scoreScale(it.gen, state.guesses[state.current], weightMode);
         }
