@@ -143,6 +143,10 @@
   .scale-fret-labels{ display:flex; flex-direction:column; }
   .scale-fret-labels span{ height:var(--cw,42px); display:flex; align-items:center; justify-content:flex-end; padding-right:4px; font-size:11px; color:var(--ink-faint); font-weight:700; white-space:nowrap; }
   .position-banner{ background:var(--felt-soft); color:var(--felt-ink); border-radius:10px; padding:10px 14px; font-size:13px; text-align:center; margin-top:12px; line-height:1.5; }
+  .scale-nut{ height:9px; background:#ECDFC0; margin:0 3px; border-radius:2px; box-shadow:0 1px 2px rgba(0,0,0,.25), inset 0 -1px 2px rgba(0,0,0,.12); }
+  .scale-chart .dot:not(.correct):not(.incorrect):not(.warn):not(.root):not(.ghost){
+    background:transparent; border:2.5px solid var(--good); color:var(--good); box-shadow:none;
+  }
 
   .stage{ max-width:640px; margin:0 auto; }
   .progress-track{ display:flex; gap:6px; margin:18px 0 28px; }
@@ -434,12 +438,13 @@
     const rows = [];
     for(let f=scaleData.windowLo; f<=scaleData.windowHi; f++) rows.push(f);
     const attempt = (mode==='result') ? matchScaleAttempt(scaleData, guessNotes) : null;
-    let html = `<div class="chart-wrap"><div class="scale-board-row">`;
+    let html = `<div class="chart-wrap scale-chart"><div class="scale-board-row">`;
     html += `<div class="scale-fret-labels" style="--cw:${cw}px">`;
     rows.forEach(f=> html += `<span>${f===0?'Open':'Fret '+f}</span>`);
     html += `</div>`;
     html += `<div class="chart" style="--cw:${cw}px"><div class="fret-grid" style="border-radius:10px">`;
     rows.forEach(f=>{
+      if(f===1 && scaleData.windowLo===0) html += `<div class="scale-nut"></div>`;
       html += `<div class="fret-row" style="grid-template-columns:repeat(6,${cw}px); height:${cw}px" data-fret-row="${f}">`;
       for(let i=0;i<6;i++){
         const expected = scaleData.notes.find(n=>n.string===i && n.fret===f);
