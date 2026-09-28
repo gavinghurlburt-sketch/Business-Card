@@ -195,7 +195,7 @@
   function normalizeGuide(g){
     g.weightMode = g.weightMode==='position' ? 'position' : 'full';
     g.allowFingering = g.allowFingering!==false;
-    g.scales = g.scales || [];
+    g.scales = (g.scales || []).map(sc=>({ positionMode:'closed', spanFrets:5, ...sc }));
     g.chords = (g.chords||[]).map(c=>{
       if(c.answers && c.answers.length) return c;
       if(c.answer) return { ...c, answers:[{label:'Standard', strings:c.answer}] };
@@ -332,7 +332,14 @@
   /* ---------------- scales: generator + scoring ---------------- */
   const ABS_OPEN = [40,45,50,55,59,64];
   const MAJOR_STEPS = [2,2,1,2,2,2,1];
-  function generateScale(rootIdx, startString, octaves){
+  // positionMode 'closed' (default): fixed hand position starting at the root's
+  // fret, maximizing notes per string (fewest string crossings), spanning
+  // `spanFrets` columns. 'open': greedily picks the lowest playable fret for
+  // each note (open strings first), switching strings eagerly — the classic
+  // "open position" beginner fingering.
+  function generateScale(rootIdx, startString, octaves, positionMode, spanFrets){
+    positionMode = positionMode==='open' ? 'open' : 'closed';
+    spanFrets = [3,4,5,6].includes(spanFrets) ? spanFrets : 5;
     let startFret = 0;
     for(let f=0; f<12; f++){ if((ABS_OPEN[startString]+f)%12 === rootIdx){ startFret=f; break; } }
     const stepsCount = Math.max(1, Math.round(octaves))*7;
@@ -342,7 +349,33 @@
     const startAbs = ABS_OPEN[startString] + startFret;
     const notes = [{string:startString, fret:startFret, order:1, pitch:startAbs, isRoot:true}];
     let curString = startString;
-    const winLo = startFret, winHi = startFret+4;
+
+    if(positionMode==='open'){
+      const maxFret = spanFrets-1;
+      for(let i=1;i<cumulative.length;i++){
+        const targetAbs = startAbs + cumulative[i];
+        const isRoot = cumulative[i]%12===0;
+        let candidates = [];
+        for(let str=curString; str<=5; str++){
+          const fret = targetAbs - ABS_OPEN[str];
+          if(fret>=0 && fret<=maxFret) candidates.push({str,fret});
+        }
+        if(!candidates.length){
+          for(let str=curString; str<=5; str++){
+            const fret = targetAbs - ABS_OPEN[str];
+            if(fret>=0){ candidates.push({str,fret}); break; }
+          }
+        }
+        candidates.sort((a,b)=> a.fret-b.fret || a.str-b.str);
+        const pick = candidates[0] || {str:curString, fret: targetAbs-ABS_OPEN[curString]};
+        notes.push({string:pick.str, fret:pick.fret, order:i+1, pitch:targetAbs, isRoot});
+        curString = pick.str;
+      }
+      const maxUsed = notes.reduce((m,n)=>Math.max(m,n.fret),0);
+      return { root:rootIdx, startString, octaves, startFret, positionMode, spanFrets, windowLo:0, windowHi:Math.max(maxFret,maxUsed), notes };
+    }
+
+    const winLo = startFret, winHi = startFret+spanFrets-1;
     for(let i=1;i<cumulative.length;i++){
       const targetAbs = startAbs + cumulative[i];
       const isRoot = cumulative[i]%12===0;
@@ -364,12 +397,13 @@
         }
       }
     }
-    return { root: rootIdx, startString, octaves, startFret, windowLo:winLo, windowHi:Math.max(winHi, notes.reduce((m,n)=>Math.max(m,n.fret),winHi)), notes };
+    return { root: rootIdx, startString, octaves, startFret, positionMode, spanFrets, windowLo:winLo, windowHi:Math.max(winHi, notes.reduce((m,n)=>Math.max(m,n.fret),winHi)), notes };
   }
   function scaleInstructions(sc){
-    const data = generateScale(sc.root, sc.startString, sc.octaves);
+    const data = generateScale(sc.root, sc.startString, sc.octaves, sc.positionMode, sc.spanFrets);
     const posLabel = data.windowLo===data.windowHi ? `fret ${data.windowLo}` : `frets ${data.windowLo}–${data.windowHi}`;
-    return { text:`Play ${NOTE_NAMES[sc.root].split('/')[0]} Major ascending, ${sc.octaves===2?'two octaves':'one octave'}, starting on the ${STRING_START_LABELS[sc.startString]} string. Stay in one hand position (${posLabel}) — no shifting up or down the neck. Any string works as long as it's the right note. Tap a note, then tap it again to mark it as the root (${NOTE_NAMES[sc.root].split('/')[0]}).`, data };
+    const openNote = sc.positionMode==='open' ? ' Uses open strings wherever they fit.' : '';
+    return { text:`Play ${NOTE_NAMES[sc.root].split('/')[0]} Major ascending, ${sc.octaves===2?'two octaves':'one octave'}, starting on the ${STRING_START_LABELS[sc.startString]} string. Stay within ${posLabel}${openNote} — no shifting up or down the neck. Any string works as long as it's the right note. Tap a note, then tap it again to mark it as the root (${NOTE_NAMES[sc.root].split('/')[0]}).`, data };
   }
   // Matches guessed notes to expected notes by PITCH, not by exact string/fret —
   // playing the right note on a different (but still in-position) string counts.
@@ -639,7 +673,7 @@
   function runPracticeApp(guide){
     // Build a single flowing list of exercises: chords first, then scales.
     const chordItems = guide.chords.map((c,i)=>({ kind:'chord', data:c, chordIdx:i }));
-    const scaleItems = (guide.scales||[]).map((sc,i)=>({ kind:'scale', data:sc, scaleIdx:i, gen: generateScale(sc.root, sc.startString, sc.octaves) }));
+    const scaleItems = (guide.scales||[]).map((sc,i)=>({ kind:'scale', data:sc, scaleIdx:i, gen: generateScale(sc.root, sc.startString, sc.octaves, sc.positionMode, sc.spanFrets) }));
     const items = chordItems.concat(scaleItems);
     const weightMode = guide.weightMode || 'full';
     const allowFingering = guide.allowFingering!==false;
