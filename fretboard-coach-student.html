@@ -129,12 +129,19 @@
 
   .dot.correct{ background:var(--good); }
   .dot.incorrect{ background:var(--bad); }
+  .dot.warn{ background:var(--accent); }
   .dot.ghost{ background:transparent; border:2px dashed var(--ink-faint); color:var(--ink-faint); }
   .head-btn.correct{ color:var(--good); }
   .head-btn.incorrect{ color:var(--bad); text-decoration:underline wavy; }
 
   .chord-name-display{ font-family:'Fraunces',serif; font-weight:700; font-size:clamp(30px,6vw,44px); text-align:center; }
   .chord-note{ text-align:center; color:var(--ink-soft); font-size:14px; margin-top:-8px; }
+
+  /* scale board */
+  .scale-board-row{ display:flex; gap:4px; justify-content:center; }
+  .scale-fret-labels{ display:flex; flex-direction:column; }
+  .scale-fret-labels span{ height:var(--cw,42px); display:flex; align-items:center; justify-content:flex-end; padding-right:4px; font-size:11px; color:var(--ink-faint); font-weight:700; white-space:nowrap; }
+  .position-banner{ background:var(--felt-soft); color:var(--felt-ink); border-radius:10px; padding:10px 14px; font-size:13px; text-align:center; margin-top:12px; line-height:1.5; }
 
   .stage{ max-width:640px; margin:0 auto; }
   .progress-track{ display:flex; gap:6px; margin:18px 0 28px; }
@@ -172,6 +179,8 @@
   "use strict";
 
   const STRING_NAMES = ["E","A","D","G","B","E"];
+  const STRING_START_LABELS = ["Low E (6th string)","A (5th string)","D (4th string)","G (3rd string)","B (2nd string)","High E (1st string)"];
+  const NOTE_NAMES = ['C','C#/Db','D','D#/Eb','E','F','F#/Gb','G','G#/Ab','A','A#/Bb','B'];
   const FRETS = 4;
   function s(type, fret, finger){ return {type, fret: fret||null, finger: finger||null}; }
   function blankStrings(){ return Array.from({length:6}, ()=>s(null)); }
@@ -181,6 +190,16 @@
     while(b64.length % 4) b64 += '=';
     const json = decodeURIComponent(escape(atob(b64)));
     return JSON.parse(json);
+  }
+  function normalizeGuide(g){
+    g.weightMode = g.weightMode==='position' ? 'position' : 'full';
+    g.scales = g.scales || [];
+    g.chords = (g.chords||[]).map(c=>{
+      if(c.answers && c.answers.length) return c;
+      if(c.answer) return { ...c, answers:[{label:'Standard', strings:c.answer}] };
+      return c;
+    });
+    return g;
   }
 
   /* ---------------- chart rendering ---------------- */
@@ -263,8 +282,8 @@
     else strings[stringIdx] = s('open');
   }
 
-  /* ---------------- scoring ---------------- */
-  function scoreChord(answer, guess){
+  /* ---------------- scoring (chords) ---------------- */
+  function scoreChordVariant(answer, guess){
     let posTotal=0, posCorrect=0, omTotal=0, omCorrect=0, fingerTotal=0, fingerCorrect=0;
     for(let i=0;i<6;i++){
       const a = answer[i], g = guess[i];
@@ -283,10 +302,141 @@
     const pos = posTotal? posCorrect/posTotal : 1;
     const om = omTotal? omCorrect/omTotal : 1;
     const fin = fingerTotal? fingerCorrect/fingerTotal : 1;
-    const overall = pos*0.6 + om*0.2 + fin*0.2;
-    return { pos, om, fin, overall, posCorrect, posTotal, omCorrect, omTotal, fingerCorrect, fingerTotal };
+    return { pos, om, fin, posCorrect, posTotal, omCorrect, omTotal, fingerCorrect, fingerTotal, matchedAnswer:answer };
+  }
+  function computeOverall(pos, om, fin, weightMode){
+    return weightMode==='position' ? pos : (pos*0.6 + om*0.2 + fin*0.2);
+  }
+  // Picks the best-matching correct variant, then grades against it.
+  function scoreChord(answers, guess, weightMode){
+    let best = null, bestPick = -1;
+    answers.forEach(v=>{
+      const r = scoreChordVariant(v.strings, guess);
+      const pick = r.pos*0.7 + r.om*0.15 + r.fin*0.15;
+      if(!best || pick > bestPick){ best = r; bestPick = pick; }
+    });
+    best.overall = computeOverall(best.pos, best.om, best.fin, weightMode);
+    best.weightMode = weightMode;
+    return best;
   }
   const pct = x => Math.round(x*100);
+
+  /* ---------------- scales: generator + scoring ---------------- */
+  const ABS_OPEN = [40,45,50,55,59,64];
+  const MAJOR_STEPS = [2,2,1,2,2,2,1];
+  function generateScale(rootIdx, startString, octaves){
+    let startFret = 0;
+    for(let f=0; f<12; f++){ if((ABS_OPEN[startString]+f)%12 === rootIdx){ startFret=f; break; } }
+    const stepsCount = Math.max(1, Math.round(octaves))*7;
+    const cumulative = [0];
+    let running = 0;
+    for(let i=0;i<stepsCount;i++){ running += MAJOR_STEPS[i%7]; cumulative.push(running); }
+    const startAbs = ABS_OPEN[startString] + startFret;
+    const notes = [{string:startString, fret:startFret, order:1}];
+    let curString = startString;
+    const winLo = startFret, winHi = startFret+4;
+    for(let i=1;i<cumulative.length;i++){
+      const targetAbs = startAbs + cumulative[i];
+      let placed = false;
+      for(let str=curString; str<=5 && !placed; str++){
+        const fret = targetAbs - ABS_OPEN[str];
+        if(fret>=winLo && fret<=winHi){ notes.push({string:str, fret, order:i+1}); curString=str; placed=true; }
+      }
+      if(!placed){
+        for(let str=curString; str<=5 && !placed; str++){
+          const fret = targetAbs - ABS_OPEN[str];
+          if(fret>=0 && fret<=winHi+1){ notes.push({string:str, fret, order:i+1}); curString=str; placed=true; }
+        }
+      }
+      if(!placed){
+        for(let str=0; str<=5 && !placed; str++){
+          const fret = targetAbs - ABS_OPEN[str];
+          if(fret>=0 && fret<=24){ notes.push({string:str, fret, order:i+1}); curString=str; placed=true; }
+        }
+      }
+    }
+    return { root: rootIdx, startString, octaves, startFret, windowLo:winLo, windowHi:Math.max(winHi, notes.reduce((m,n)=>Math.max(m,n.fret),winHi)), notes };
+  }
+  function scaleInstructions(sc){
+    const data = generateScale(sc.root, sc.startString, sc.octaves);
+    const posLabel = data.windowLo===data.windowHi ? `fret ${data.windowLo}` : `frets ${data.windowLo}–${data.windowHi}`;
+    return { text:`Play ${NOTE_NAMES[sc.root].split('/')[0]} Major ascending, ${sc.octaves===2?'two octaves':'one octave'}, starting on the ${STRING_START_LABELS[sc.startString]} string. Stay in one hand position (${posLabel}) — no shifting up or down the neck. Tap the notes on the diagram in the order you'd play them.`, data };
+  }
+  function renderScaleChart(opts){
+    const { scaleData, mode, guessNotes } = opts;
+    const cw = opts.small ? 34 : 42;
+    const rows = [];
+    for(let f=scaleData.windowLo; f<=scaleData.windowHi; f++) rows.push(f);
+    let html = `<div class="chart-wrap"><div class="scale-board-row">`;
+    html += `<div class="scale-fret-labels" style="--cw:${cw}px">`;
+    rows.forEach(f=> html += `<span>${f===0?'Open':'Fret '+f}</span>`);
+    html += `</div>`;
+    html += `<div class="chart" style="--cw:${cw}px"><div class="fret-grid" style="border-radius:10px">`;
+    rows.forEach(f=>{
+      html += `<div class="fret-row" style="grid-template-columns:repeat(6,${cw}px); height:${cw}px" data-fret-row="${f}">`;
+      for(let i=0;i<6;i++){
+        const expected = scaleData.notes.find(n=>n.string===i && n.fret===f);
+        const guessed = guessNotes ? guessNotes.find(n=>n.string===i && n.fret===f) : null;
+        const editable = mode==='input';
+        html += `<button type="button" class="cell ${editable?'editable':'readonly'}" style="--cw:${cw}px;--ch:${cw}px" data-string="${i}" data-fret="${f}" ${editable?'':'disabled'}>`;
+        if(mode==='answer' && expected){
+          html += `<span class="dot">${expected.order}</span>`;
+        } else if(mode==='input'){
+          if(guessed) html += `<span class="dot">${guessed.order}</span>`;
+        } else if(mode==='result'){
+          if(expected && guessed){
+            html += `<span class="dot ${expected.order===guessed.order?'correct':'warn'}">${guessed.order}</span>`;
+          } else if(expected && !guessed){
+            html += `<span class="dot ghost">${expected.order}</span>`;
+          } else if(!expected && guessed){
+            html += `<span class="dot incorrect">${guessed.order}</span>`;
+          }
+        }
+        html += `</button>`;
+      }
+      html += `</div>`;
+    });
+    html += `</div>`;
+    html += `<div class="string-names" style="grid-template-columns:repeat(6,${cw}px)">`;
+    STRING_NAMES.forEach(n=> html += `<span>${n}</span>`);
+    html += `</div></div></div></div>`;
+    return html;
+  }
+  function attachScaleChartEvents(container, onCellClick){
+    container.querySelectorAll('.cell.editable').forEach(btn=>{
+      btn.addEventListener('click', ()=> onCellClick(parseInt(btn.dataset.string), parseInt(btn.dataset.fret)));
+    });
+  }
+  function toggleScaleNote(guessNotes, string, fret){
+    const idx = guessNotes.findIndex(n=>n.string===string && n.fret===fret);
+    if(idx>-1){
+      guessNotes.splice(idx,1);
+      guessNotes.forEach((n,i)=>{ n.order = i+1; });
+    } else {
+      guessNotes.push({string, fret, order: guessNotes.length+1});
+    }
+  }
+  function scoreScale(scaleData, guessNotes, weightMode){
+    const total = scaleData.notes.length;
+    const expByKey = {};
+    scaleData.notes.forEach(n=>{ expByKey[n.string+'_'+n.fret] = n.order; });
+    let posCorrect=0, orderCorrect=0;
+    const matched = new Set();
+    guessNotes.forEach(g=>{
+      const key = g.string+'_'+g.fret;
+      if(expByKey[key]!=null && !matched.has(key)){
+        matched.add(key);
+        posCorrect++;
+        if(expByKey[key]===g.order) orderCorrect++;
+      }
+    });
+    const recall = total? posCorrect/total : 1;
+    const precision = guessNotes.length? posCorrect/guessNotes.length : (total?0:1);
+    const pos = total? (recall*0.7 + precision*0.3) : 1;
+    const ord = total? orderCorrect/total : 1;
+    const overall = weightMode==='position' ? pos : (pos*0.6 + ord*0.4);
+    return { pos, ord, overall, posCorrect, total, orderCorrect, weightMode };
+  }
 
   /* ---------------- mic strum check ---------------- */
   const OPEN_FREQ = [82.41, 110.00, 146.83, 196.00, 246.94, 329.63];
@@ -416,7 +566,7 @@
   const urlGuideData = hashParams.get('g') || searchParams.get('g');
 
   if(urlGuideData){
-    try{ runPracticeApp(decodeGuide(urlGuideData)); }
+    try{ runPracticeApp(normalizeGuide(decodeGuide(urlGuideData))); }
     catch(e){ runEntryScreen(); }
   } else {
     runEntryScreen();
@@ -457,8 +607,8 @@
         const raw = document.getElementById('code-input').value.trim();
         if(!raw){ errorMsg = 'Paste your practice code first.'; render(); return; }
         try{
-          const guide = decodeGuide(raw.replace(/\s+/g,''));
-          if(!guide || !Array.isArray(guide.chords) || !guide.chords.length) throw new Error('empty');
+          const guide = normalizeGuide(decodeGuide(raw.replace(/\s+/g,'')));
+          if(!guide || (!(guide.chords&&guide.chords.length) && !(guide.scales&&guide.scales.length))) throw new Error('empty');
           runPracticeApp(guide);
         }catch(e){
           errorMsg = "That code didn't work — check that you copied the whole thing, then try again.";
@@ -471,11 +621,18 @@
 
   /* ================= PRACTICE APP ================= */
   function runPracticeApp(guide){
+    // Build a single flowing list of exercises: chords first, then scales.
+    const chordItems = guide.chords.map((c,i)=>({ kind:'chord', data:c, chordIdx:i }));
+    const scaleItems = (guide.scales||[]).map((sc,i)=>({ kind:'scale', data:sc, scaleIdx:i, gen: generateScale(sc.root, sc.startString, sc.octaves) }));
+    const items = chordItems.concat(scaleItems);
+    const weightMode = guide.weightMode || 'full';
+
     const state = {
-      screen:'intro', current: 0,
-      guesses: guide.chords.map(()=>blankStrings()),
-      results: guide.chords.map(()=>null),
-      mic: guide.chords.map(()=>({status:'idle', progress:{strumsDetected:0,level:0}, results:null, error:null, controller:null})),
+      screen: items.length ? 'intro' : 'intro', current: 0,
+      guesses: items.map(it => it.kind==='chord' ? blankStrings() : []),
+      results: items.map(()=>null),
+      mic: items.map(it => it.kind==='chord' ? {status:'idle', progress:{strumsDetected:0,level:0}, results:null, error:null, controller:null} : null),
+      shownScaleIntro: false,
     };
     function stopMic(idx){
       const m = state.mic[idx];
@@ -496,70 +653,130 @@
 
     function screenHTML(){
       if(state.screen==='intro') return introHTML();
+      if(state.screen==='scaleintro') return scaleIntroHTML();
       if(state.screen==='practice') return practiceHTML();
       if(state.screen==='summary') return summaryHTML();
       return '';
     }
 
     function introHTML(){
+      const chordCount = chordItems.length, scaleCount = scaleItems.length;
+      const parts = [];
+      if(chordCount) parts.push(`${chordCount} chord${chordCount===1?'':'s'}`);
+      if(scaleCount) parts.push(`${scaleCount} scale${scaleCount===1?'':'s'}`);
       return `
         <div style="text-align:center;padding-top:18px">
-          <div class="eyebrow">Personalized chord practice</div>
-          <h1 style="margin-top:8px;font-size:clamp(26px,5vw,38px)">${esc(guide.title||'Your Chord Practice')}</h1>
+          <div class="eyebrow">Personalized guitar practice</div>
+          <h1 style="margin-top:8px;font-size:clamp(26px,5vw,38px)">${esc(guide.title||'Your Practice Set')}</h1>
           <p style="color:var(--ink-soft);margin-top:10px;max-width:48ch;margin-left:auto;margin-right:auto">
-            ${guide.student ? `Hi ${esc(guide.student)}! ` : ''}You'll see a chord name, then tap the chart to place your finger dots —
-            like a paint-by-numbers for the guitar neck. Mark which strings are open (O) or muted (X) too, for bonus points.
+            ${guide.student ? `Hi ${esc(guide.student)}! ` : ''}Here's exactly what's expected: ${parts.join(' and ')} in this set${chordCount?', starting with chords':''}.
           </p>
           <div class="banner banner-felt" style="text-align:left;max-width:440px;margin:22px auto 0">
-            <strong>How to answer:</strong><br/>
+            ${chordCount ? `<strong>Chords:</strong><br/>
             • Tap a fret box to add a finger dot &mdash; <strong>click the dot again to change its finger number</strong> (cycles 1→4→blank).<br/>
             • Tap the letter above a string to mark it <strong>O</strong> (open) or <strong>X</strong> (muted).<br/>
-            • After each chord, there's a bonus mic round — play it for real and we'll check the sound.<br/>
-            • ${guide.chords.length} chord${guide.chords.length===1?'':'s'} in this practice set.
+            • Some chords accept more than one correct way to play them — either is fine.<br/>
+            • After each chord, there's a bonus mic round — play it for real and we'll check the sound.<br/>` : ''}
+            ${weightMode==='position' ? `<strong>Grading:</strong> finger placement is what counts toward your score. Open/mute marks and fingering are extra credit only.<br/>` : `<strong>Grading:</strong> finger placement, open/mute marks, and fingering all count toward your score.<br/>`}
+            ${scaleCount ? `<strong>Scales:</strong> come after the chords — you'll tap the fretboard notes in order, ascending, without shifting your hand position.` : ''}
           </div>
           <button class="btn btn-primary" id="start-btn" style="margin-top:26px;padding:13px 26px;font-size:15.5px">Start practicing →</button>
         </div>`;
     }
 
+    function scaleIntroHTML(){
+      const it = items[state.current];
+      const instr = scaleInstructions(it.data);
+      return `
+        <div style="text-align:center;padding-top:18px">
+          <div class="eyebrow">Now: scales</div>
+          <h1 style="margin-top:8px;font-size:clamp(24px,5vw,32px)">Time for scales!</h1>
+          <div class="banner banner-felt" style="text-align:left;max-width:460px;margin:20px auto 0">
+            <strong>What's expected:</strong><br/>${esc(instr.text)}<br/><br/>
+            Tap a fret box to place a note in the sequence — tap a placed note again to remove it. Numbers show the order you've tapped them.
+          </div>
+          <button class="btn btn-primary" id="start-scales-btn" style="margin-top:24px;padding:13px 26px;font-size:15.5px">Let's go →</button>
+        </div>`;
+    }
+
     function practiceHTML(){
       const idx = state.current;
-      const chord = guide.chords[idx];
+      const it = items[idx];
       const guess = state.guesses[idx];
       const result = state.results[idx];
       const mode = result ? 'result' : 'input';
-      const dots = guide.chords.map((c,i)=>{
+      const dots = items.map((x,i)=>{
         const cls = i===idx ? 'current' : (state.results[i] ? 'done' : '');
         return `<div class="progress-dot ${cls}"></div>`;
       }).join('');
       let html = `<div class="progress-track">${dots}</div>`;
-      html += `<div class="chord-name-display">${esc(chord.name)}</div>`;
-      if(chord.tip) html += `<div class="chord-note">${esc(chord.tip)}</div>`;
-      html += `<div id="chart-slot" style="margin-top:18px">` + renderChart({strings:guess, mode, answer:chord.answer}) + `</div>`;
-      if(!result){
-        html += `<p class="helper" style="text-align:center">Click the dot again to change its finger number (cycles 1→4→blank).</p>`;
-      }
-      html += `<div class="legend">
-        <span><span class="swatch" style="background:var(--felt)"></span>your dot</span>
-        <span><span class="swatch" style="background:var(--good)"></span>correct</span>
-        <span><span class="swatch" style="background:var(--bad)"></span>incorrect</span>
-        <span><span class="swatch" style="background:transparent;border:2px dashed var(--ink-faint)"></span>correct spot</span>
-      </div>`;
-      if(!result){
-        html += `<div class="center-actions">
-          <button class="btn btn-ghost btn-sm" id="clear-btn">Clear chart</button>
-          <button class="btn btn-primary" id="check-btn" style="padding:11px 24px">Check my answer</button>
+
+      if(it.kind==='chord'){
+        const chord = it.data;
+        html += `<div class="chord-name-display">${esc(chord.name)}</div>`;
+        if(chord.tip) html += `<div class="chord-note">${esc(chord.tip)}</div>`;
+        html += `<div id="chart-slot" style="margin-top:18px">` + renderChart({strings:guess, mode, answer: result ? result.matchedAnswer : null}) + `</div>`;
+        if(!result){
+          html += `<p class="helper" style="text-align:center">Click the dot again to change its finger number (cycles 1→4→blank).</p>`;
+        }
+        html += `<div class="legend">
+          <span><span class="swatch" style="background:var(--felt)"></span>your dot</span>
+          <span><span class="swatch" style="background:var(--good)"></span>correct</span>
+          <span><span class="swatch" style="background:var(--bad)"></span>incorrect</span>
+          <span><span class="swatch" style="background:transparent;border:2px dashed var(--ink-faint)"></span>correct spot</span>
         </div>`;
+        if(!result){
+          html += `<div class="center-actions">
+            <button class="btn btn-ghost btn-sm" id="clear-btn">Clear chart</button>
+            <button class="btn btn-primary" id="check-btn" style="padding:11px 24px">Check my answer</button>
+          </div>`;
+        } else {
+          const bonusLabel = weightMode==='position' ? ' (bonus)' : '';
+          html += `<div class="score-row">
+            <div class="score-chip ${gradeClass(result.pos)}"><div class="num">${pct(result.pos)}%</div><div class="lbl">Finger placement</div></div>
+            <div class="score-chip ${gradeClass(result.om)}"><div class="num">${pct(result.om)}%</div><div class="lbl">Open / mute${bonusLabel}</div></div>
+            <div class="score-chip ${gradeClass(result.fin)}"><div class="num">${pct(result.fin)}%</div><div class="lbl">Fingering${bonusLabel}</div></div>
+          </div>`;
+          html += `<div class="center-actions">
+            <button class="btn btn-ghost btn-sm" id="retry-btn">Try again</button>
+            <button class="btn btn-primary" id="next-btn" style="padding:11px 24px">${idx < items.length-1 ? 'Next →' : 'See my results →'}</button>
+          </div>`;
+          html += micPanelHTML(idx);
+        }
       } else {
-        html += `<div class="score-row">
-          <div class="score-chip ${gradeClass(result.pos)}"><div class="num">${pct(result.pos)}%</div><div class="lbl">Finger placement</div></div>
-          <div class="score-chip ${gradeClass(result.om)}"><div class="num">${pct(result.om)}%</div><div class="lbl">Open / mute</div></div>
-          <div class="score-chip ${gradeClass(result.fin)}"><div class="num">${pct(result.fin)}%</div><div class="lbl">Fingering</div></div>
+        const sc = it.data;
+        const gen = it.gen;
+        html += `<div class="chord-name-display">${esc(sc.name)}</div>`;
+        if(sc.tip) html += `<div class="chord-note">${esc(sc.tip)}</div>`;
+        const instr = scaleInstructions(sc);
+        html += `<div class="position-banner">${esc(instr.text)}</div>`;
+        html += `<div id="chart-slot" style="margin-top:14px">` + renderScaleChart({scaleData:gen, mode, guessNotes:guess}) + `</div>`;
+        if(!result){
+          html += `<p class="helper" style="text-align:center">${guess.length} of ${gen.notes.length} notes placed.</p>`;
+        }
+        html += `<div class="legend">
+          <span><span class="swatch" style="background:var(--felt)"></span>your note</span>
+          <span><span class="swatch" style="background:var(--good)"></span>right note &amp; order</span>
+          <span><span class="swatch" style="background:var(--accent)"></span>right note, wrong order</span>
+          <span><span class="swatch" style="background:var(--bad)"></span>wrong note</span>
+          <span><span class="swatch" style="background:transparent;border:2px dashed var(--ink-faint)"></span>missed note</span>
         </div>`;
-        html += `<div class="center-actions">
-          <button class="btn btn-ghost btn-sm" id="retry-btn">Try again</button>
-          <button class="btn btn-primary" id="next-btn" style="padding:11px 24px">${idx < guide.chords.length-1 ? 'Next chord →' : 'See my results →'}</button>
-        </div>`;
-        html += micPanelHTML(idx);
+        if(!result){
+          html += `<div class="center-actions">
+            <button class="btn btn-ghost btn-sm" id="clear-btn">Clear</button>
+            <button class="btn btn-primary" id="check-btn" style="padding:11px 24px">Check my answer</button>
+          </div>`;
+        } else {
+          const bonusLabel = weightMode==='position' ? ' (bonus)' : '';
+          html += `<div class="score-row">
+            <div class="score-chip ${gradeClass(result.pos)}"><div class="num">${pct(result.pos)}%</div><div class="lbl">Right notes</div></div>
+            <div class="score-chip ${gradeClass(result.ord)}"><div class="num">${pct(result.ord)}%</div><div class="lbl">Correct order${bonusLabel}</div></div>
+          </div>`;
+          html += `<div class="center-actions">
+            <button class="btn btn-ghost btn-sm" id="retry-btn">Try again</button>
+            <button class="btn btn-primary" id="next-btn" style="padding:11px 24px">${idx < items.length-1 ? 'Next →' : 'See my results →'}</button>
+          </div>`;
+        }
       }
       return html;
     }
@@ -605,9 +822,10 @@
 
     function summaryHTML(){
       const overallAvg = state.results.reduce((sum,r)=>sum+r.overall,0)/state.results.length;
-      const rows = guide.chords.map((c,i)=>{
+      const rows = items.map((it,i)=>{
         const r = state.results[i];
-        return `<div class="summary-row"><span class="name">${esc(c.name)}</span><span class="pct" style="color:${r.overall>=0.85?'var(--good)':r.overall>=0.6?'var(--accent)':'var(--bad)'}">${pct(r.overall)}%</span></div>`;
+        const name = it.kind==='chord' ? it.data.name : it.data.name;
+        return `<div class="summary-row"><span class="name">${esc(name)}</span><span class="pct" style="color:${r.overall>=0.85?'var(--good)':r.overall>=0.6?'var(--accent)':'var(--bad)'}">${pct(r.overall)}%</span></div>`;
       }).join('');
       const teacherLine = guide.teacherEmail ? `mailto:${guide.teacherEmail}?subject=${encodeURIComponent((guide.student?guide.student+"'s ":'')+guide.title+' — results')}&body=${encodeURIComponent(summaryText(overallAvg))}` : null;
       return `
@@ -630,7 +848,11 @@
 
     function summaryText(avg){
       let t = `${guide.student||'A student'} just finished "${guide.title}" — overall score ${pct(avg)}%.\n\n`;
-      guide.chords.forEach((c,i)=> t += `${c.name}: ${pct(state.results[i].overall)}% (placement ${pct(state.results[i].pos)}%, open/mute ${pct(state.results[i].om)}%, fingering ${pct(state.results[i].fin)}%)\n`);
+      items.forEach((it,i)=>{
+        const r = state.results[i];
+        if(it.kind==='chord') t += `${it.data.name}: ${pct(r.overall)}% (placement ${pct(r.pos)}%, open/mute ${pct(r.om)}%, fingering ${pct(r.fin)}%)\n`;
+        else t += `${it.data.name}: ${pct(r.overall)}% (right notes ${pct(r.pos)}%, order ${pct(r.ord)}%)\n`;
+      });
       return t;
     }
 
@@ -639,54 +861,77 @@
       if(switchBtn) switchBtn.addEventListener('click', ()=>{ stopMic(state.current); runEntryScreen(); });
 
       const startBtn = document.getElementById('start-btn');
-      if(startBtn) startBtn.addEventListener('click', ()=>{ state.screen='practice'; render(); });
+      if(startBtn) startBtn.addEventListener('click', ()=>{
+        state.screen = (items[0] && items[0].kind==='scale') ? 'scaleintro' : 'practice';
+        render();
+      });
+      const startScalesBtn = document.getElementById('start-scales-btn');
+      if(startScalesBtn) startScalesBtn.addEventListener('click', ()=>{ state.screen='practice'; render(); });
 
+      const it = items[state.current];
       const slot = document.getElementById('chart-slot');
-      if(slot && !state.results[state.current]){
-        attachChartEvents(slot, state.guesses[state.current], {
-          onCellClick(i,f){ cycleCell(state.guesses[state.current], i, f); render(); },
-          onHeadClick(i){ cycleHead(state.guesses[state.current], i); render(); }
-        });
+      if(slot && it && !state.results[state.current]){
+        if(it.kind==='chord'){
+          attachChartEvents(slot, state.guesses[state.current], {
+            onCellClick(i,f){ cycleCell(state.guesses[state.current], i, f); render(); },
+            onHeadClick(i){ cycleHead(state.guesses[state.current], i); render(); }
+          });
+        } else {
+          attachScaleChartEvents(slot, (i,f)=>{ toggleScaleNote(state.guesses[state.current], i, f); render(); });
+        }
       }
       const clearBtn = document.getElementById('clear-btn');
-      if(clearBtn) clearBtn.addEventListener('click', ()=>{ state.guesses[state.current] = blankStrings(); render(); });
+      if(clearBtn) clearBtn.addEventListener('click', ()=>{
+        state.guesses[state.current] = it.kind==='chord' ? blankStrings() : [];
+        render();
+      });
 
       const checkBtn = document.getElementById('check-btn');
       if(checkBtn) checkBtn.addEventListener('click', ()=>{
-        const chord = guide.chords[state.current];
-        state.results[state.current] = scoreChord(chord.answer, state.guesses[state.current]);
+        if(it.kind==='chord'){
+          state.results[state.current] = scoreChord(it.data.answers, state.guesses[state.current], weightMode);
+        } else {
+          state.results[state.current] = scoreScale(it.gen, state.guesses[state.current], weightMode);
+        }
         render();
       });
       const retryBtn = document.getElementById('retry-btn');
       if(retryBtn) retryBtn.addEventListener('click', ()=>{
         state.results[state.current] = null;
-        state.guesses[state.current] = blankStrings();
+        state.guesses[state.current] = it.kind==='chord' ? blankStrings() : [];
         render();
       });
       const nextBtn = document.getElementById('next-btn');
       if(nextBtn) nextBtn.addEventListener('click', ()=>{
         stopMic(state.current);
-        if(state.current < guide.chords.length-1){ state.current++; render(); }
-        else { state.screen='summary'; render(); }
+        if(state.current < items.length-1){
+          const wasChord = items[state.current].kind==='chord';
+          state.current++;
+          const nowScale = items[state.current].kind==='scale';
+          state.screen = (wasChord && nowScale) ? 'scaleintro' : 'practice';
+          render();
+        }
+        else { state.screen = 'summary'; render(); }
       });
       const restartBtn = document.getElementById('restart-btn');
       if(restartBtn) restartBtn.addEventListener('click', ()=>{
         state.mic.forEach((m,i)=>stopMic(i));
-        state.current=0; state.screen='practice';
-        state.guesses = guide.chords.map(()=>blankStrings());
-        state.results = guide.chords.map(()=>null);
-        state.mic = guide.chords.map(()=>({status:'idle', progress:{strumsDetected:0,level:0}, results:null, error:null, controller:null}));
+        state.current=0; state.screen = items[0] && items[0].kind==='scale' ? 'scaleintro' : 'practice';
+        state.guesses = items.map(x=> x.kind==='chord' ? blankStrings() : []);
+        state.results = items.map(()=>null);
+        state.mic = items.map(x=> x.kind==='chord' ? {status:'idle', progress:{strumsDetected:0,level:0}, results:null, error:null, controller:null} : null);
         render();
       });
 
       const micStartBtn = document.getElementById('mic-start-btn');
       if(micStartBtn) micStartBtn.addEventListener('click', ()=>{
         const idx = state.current;
-        const chord = guide.chords[idx];
+        const chord = items[idx].data;
         const m = state.mic[idx];
+        const matched = state.results[idx] ? state.results[idx].matchedAnswer : chord.answers[0].strings;
         m.status='listening'; m.progress={strumsDetected:0,level:0}; m.results=null; m.error=null;
         render();
-        const bassFreq = chordBassFreq(chord.answer);
+        const bassFreq = chordBassFreq(matched);
         m.controller = createStrumListener({
           expectedBassFreq: bassFreq,
           targetStrums: 5,
