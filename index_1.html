@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Practice Hub</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500..700&family=Work+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+  :root{
+    --bg:#F1EBDC; --surface:#FFFFFF; --surface-2:#FAF5E9;
+    --ink:#241E15; --ink-soft:#746A56; --ink-faint:#A79A81;
+    --line:#DED2B4; --line-strong:#C9BA92;
+    --accent:#9C5A2E; --accent-ink:#FFF9EE;
+    --good:#2E7D52; --bad:#B23A2E;
+    --shadow:0 1px 2px rgba(36,30,21,.06), 0 8px 24px -12px rgba(36,30,21,.18);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#161209; --surface:#211B10; --surface-2:#2A2313;
+      --ink:#F3ECDA; --ink-soft:#BCAE8C; --ink-faint:#82765C;
+      --line:#3B3218; --line-strong:#4D4220;
+      --accent:#E0A362; --accent-ink:#221807;
+      --good:#5FBE8B; --bad:#E88676;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 30px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#161209; --surface:#211B10; --surface-2:#2A2313;
+    --ink:#F3ECDA; --ink-soft:#BCAE8C; --ink-faint:#82765C;
+    --line:#3B3218; --line-strong:#4D4220;
+    --accent:#E0A362; --accent-ink:#221807;
+    --good:#5FBE8B; --bad:#E88676;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 30px -12px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:'Work Sans',system-ui,sans-serif;
+    padding:28px 16px calc(28px + env(safe-area-inset-bottom,0px));
+    display:flex; justify-content:center;
+    min-height:100vh;
+  }
+  .wrap{width:100%; max-width:560px; display:flex; flex-direction:column; gap:16px;}
+  h1{font-family:'Fraunces',serif; font-weight:600; font-size:1.7rem; margin:0; letter-spacing:-.01em;}
+  .tagline{margin:3px 0 0; font-size:.85rem; color:var(--ink-soft);}
+  .card{
+    background:var(--surface); border:1px solid var(--line); border-radius:14px;
+    box-shadow:var(--shadow); padding:18px; display:flex; flex-direction:column; gap:12px;
+  }
+  label.lab{
+    font-size:.68rem; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--ink-faint); font-weight:600;
+  }
+  textarea, input[type="text"]{
+    width:100%; background:var(--surface-2); border:1px solid var(--line);
+    border-radius:8px; color:var(--ink); font-family:'JetBrains Mono',monospace;
+    font-size:.78rem; padding:10px; resize:vertical;
+  }
+  input[type="text"].plain{font-family:'Work Sans',sans-serif; font-size:.9rem;}
+  ::placeholder{color:var(--ink-faint);}
+  .btn{
+    border-radius:999px; padding:11px 22px; font-family:inherit; font-weight:600;
+    font-size:.88rem; cursor:pointer; border:1px solid var(--line-strong);
+    background:var(--surface-2); color:var(--ink); text-decoration:none; text-align:center;
+    display:inline-block;
+  }
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
+  .btn:disabled{opacity:.45; cursor:not-allowed;}
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .msg{font-size:.8rem; color:var(--ink-soft); margin:0;}
+  .msg.err{color:var(--bad);} .msg.ok{color:var(--good);}
+  .part{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    border:1px solid var(--line); border-radius:12px; padding:14px; background:var(--surface-2);
+  }
+  .part-n{
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.75rem;
+    color:var(--accent-ink); background:var(--accent); border-radius:999px; padding:3px 9px;
+  }
+  .part-name{font-weight:600; flex:1 1 auto; min-width:0;}
+  .part-done{font-family:'JetBrains Mono',monospace; font-size:.75rem; color:var(--good);}
+  .foot{font-size:.74rem; color:var(--ink-faint); text-align:center;}
+  .foot a{color:var(--ink-soft);}
+  [hidden]{display:none !important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Practice Hub</h1>
+    <p class="tagline" id="tagline">Paste the code your teacher sent you.</p>
+  </header>
+
+  <!-- STUDENT: code entry -->
+  <section class="card" id="entryCard">
+    <div>
+      <label class="lab" for="codeIn">Your practice code</label>
+      <textarea id="codeIn" rows="4" placeholder="Paste the code or link here"></textarea>
+    </div>
+    <p class="msg err" id="entryErr" hidden></p>
+    <div class="row">
+      <button class="btn primary" id="goBtn">Start practicing</button>
+      <button class="btn" id="pasteBtn">Paste from clipboard</button>
+    </div>
+  </section>
+
+  <!-- STUDENT: a lesson with parts -->
+  <section class="card" id="lessonCard" hidden>
+    <div>
+      <h2 style="font-family:'Fraunces',serif;margin:0;font-size:1.15rem" id="lessonTitle">Lesson</h2>
+      <p class="msg" id="lessonFor"></p>
+    </div>
+    <div id="partList"></div>
+    <div class="row">
+      <a class="btn" id="mailBtn" hidden>Email my results</a>
+      <button class="btn" id="exitLesson">Enter a different code</button>
+    </div>
+  </section>
+
+  <!-- TEACHER -->
+  <section class="card" id="teacherCard" hidden>
+    <div>
+      <label class="lab" for="lessonName">Lesson name</label>
+      <input type="text" class="plain" id="lessonName" placeholder="Week 3 warm-up">
+    </div>
+    <div class="row">
+      <div style="flex:1 1 180px">
+        <label class="lab" for="forStudent">Student name</label>
+        <input type="text" class="plain" id="forStudent" placeholder="Sam">
+      </div>
+      <div style="flex:1 1 180px">
+        <label class="lab" for="forEmail">Your email (for results)</label>
+        <input type="text" class="plain" id="forEmail" placeholder="you@example.com">
+      </div>
+    </div>
+    <div>
+      <label class="lab" for="p1">Part 1 &mdash; Staff Sight link or code</label>
+      <textarea id="p1" rows="3" placeholder="Paste the assignment link from Staff Sight"></textarea>
+    </div>
+    <div>
+      <label class="lab" for="p2">Part 2 &mdash; Fretboard Coach code</label>
+      <textarea id="p2" rows="3" placeholder="Paste the code from Fretboard Coach"></textarea>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="makeBtn">Make one code</button>
+      <button class="btn" id="settingsBtn">File names</button>
+    </div>
+    <div id="settingsBox" hidden>
+      <label class="lab" for="ssFile">Staff Sight file</label>
+      <input type="text" id="ssFile" value="staff-sight.html">
+      <label class="lab" for="fbFile" style="display:block;margin-top:8px">Fretboard Coach file</label>
+      <input type="text" id="fbFile" value="fretboard-coach-student.html">
+    </div>
+    <textarea id="outCode" rows="4" readonly hidden></textarea>
+    <p class="msg" id="makeMsg"></p>
+  </section>
+
+  <p class="foot"><a href="#" id="roleToggle">I'm the teacher</a></p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* ---------- code plumbing (same envelope both apps use) ---------- */
+  function enc(obj){
+    return btoa(unescape(encodeURIComponent(JSON.stringify(obj))))
+      .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  function dec(str){
+    var s = String(str||'').trim().replace(/\s+/g,'').replace(/-/g,'+').replace(/_/g,'/');
+    while(s.length % 4) s += '=';
+    return JSON.parse(decodeURIComponent(escape(atob(s))));
+  }
+  // Accept a bare code or a full link with #a=, #g= or ?g= in it.
+  function extractCode(raw){
+    var s = String(raw||'').trim();
+    var m = /[#&?](?:a|g|l)=([^&\s]+)/.exec(s);
+    return m ? m[1] : s.replace(/\s+/g,'');
+  }
+  function store(k, v){ try{ window.localStorage.setItem(k, v); }catch(e){} }
+  function fetchLocal(k){ try{ return window.localStorage.getItem(k); }catch(e){ return null; } }
+
+  var files = {
+    ss: fetchLocal('hub.ssfile') || 'staff-sight.html',
+    fb: fetchLocal('hub.fbfile') || 'fretboard-coach-student.html'
+  };
+  $('ssFile').value = files.ss;
+  $('fbFile').value = files.fb;
+
+  // What kind of payload is this? Each app stamps its own marker; a Fretboard
+  // guide is recognised by its content, since it predates the shared envelope.
+  function kindOf(o){
+    if(!o || typeof o !== 'object') return null;
+    if(o.app === 'lesson') return 'lesson';
+    if(o.app === 'staffsight') return 'staffsight';
+    if(o.chords || o.scales || o.weightMode) return 'fretboard';
+    return null;
+  }
+
+  /* ---------- student: route a pasted code ---------- */
+  function show(which){
+    $('entryCard').hidden = which !== 'entry';
+    $('lessonCard').hidden = which !== 'lesson';
+    $('teacherCard').hidden = which !== 'teacher';
+    $('roleToggle').textContent = which === 'teacher' ? "I'm a student" : "I'm the teacher";
+    $('tagline').textContent = which === 'teacher'
+      ? 'Bundle both drills into one code to send.'
+      : 'Paste the code your teacher sent you.';
+  }
+
+  function openPart(kind, code){
+    var file = kind === 'fretboard' ? files.fb : files.ss;
+    var key = kind === 'fretboard' ? 'g' : 'a';
+    location.href = file + '#' + key + '=' + code;
+  }
+
+  function handleCode(raw){
+    var code = extractCode(raw), obj;
+    try{ obj = dec(code); }
+    catch(e){ return fail('That code did not look right. Copy the whole thing and try again.'); }
+    var kind = kindOf(obj);
+    if(!kind) return fail('That code is not from one of these practice apps.');
+    if(kind === 'lesson'){ store('hub.lesson', code); return renderLesson(obj, code); }
+    openPart(kind, code);
+  }
+  function fail(msg){ $('entryErr').textContent = msg; $('entryErr').hidden = false; }
+
+  $('goBtn').addEventListener('click', function(){
+    $('entryErr').hidden = true;
+    var v = $('codeIn').value.trim();
+    if(!v) return fail('Paste your code first.');
+    handleCode(v);
+  });
+  $('pasteBtn').addEventListener('click', function(){
+    if(!navigator.clipboard || !navigator.clipboard.readText){
+      return fail('This browser will not let the page read your clipboard - paste it by hand.');
+    }
+    navigator.clipboard.readText().then(function(txt){ $('codeIn').value = txt; },
+      function(){ fail('Could not read the clipboard - paste it by hand.'); });
+  });
+
+  /* ---------- student: a two-part lesson ---------- */
+  function resultFor(lessonId){
+    var raw = fetchLocal('lesson:' + lessonId + ':staffsight');
+    if(!raw) return null;
+    try{ return JSON.parse(raw); }catch(e){ return null; }
+  }
+
+  function renderLesson(L, code){
+    show('lesson');
+    $('lessonTitle').textContent = L.t || 'Practice lesson';
+    $('lessonFor').textContent = L.st ? 'For ' + L.st : '';
+    var list = $('partList');
+    list.innerHTML = '';
+    var done = [];
+    (L.parts || []).forEach(function(part, i){
+      var row = document.createElement('div');
+      row.className = 'part';
+      var label = part.kind === 'fretboard' ? 'Chords & scales' : 'Reading notes';
+      var res = part.kind === 'staffsight' && L.li ? resultFor(L.li) : null;
+      row.innerHTML = '<span class="part-n">Part ' + (i+1) + '</span>'
+        + '<span class="part-name"></span>'
+        + (res ? '<span class="part-done">' + res.acc + '% done</span>' : '');
+      row.querySelector('.part-name').textContent = label;
+      var go = document.createElement('button');
+      go.className = 'btn' + (res ? '' : ' primary');
+      go.textContent = res ? 'Practice again' : 'Start';
+      go.addEventListener('click', function(){ openPart(part.kind, part.d); });
+      row.appendChild(go);
+      list.appendChild(row);
+      if(res) done.push(label + ': ' + res.correct + '/' + res.answered + ' (' + res.acc + '%)');
+    });
+
+    if(L.te){
+      var body = (L.st ? L.st : 'A student') + ' finished "' + (L.t||'practice') + '".\n\n'
+        + (done.length ? done.join('\n') : 'Results are on the summary screen of each drill.');
+      $('mailBtn').href = 'mailto:' + L.te
+        + '?subject=' + encodeURIComponent((L.st ? L.st + ' - ' : '') + (L.t||'Practice') + ' results')
+        + '&body=' + encodeURIComponent(body);
+      $('mailBtn').hidden = false;
+    }
+  }
+
+  $('exitLesson').addEventListener('click', function(){
+    store('hub.lesson', '');
+    location.hash = '';
+    show('entry');
+  });
+
+  /* ---------- teacher: bundle both parts into one code ---------- */
+  $('settingsBtn').addEventListener('click', function(){
+    $('settingsBox').hidden = !$('settingsBox').hidden;
+  });
+  function saveFiles(){
+    files.ss = $('ssFile').value.trim() || 'staff-sight.html';
+    files.fb = $('fbFile').value.trim() || 'fretboard-coach-student.html';
+    store('hub.ssfile', files.ss); store('hub.fbfile', files.fb);
+  }
+  $('ssFile').addEventListener('change', saveFiles);
+  $('fbFile').addEventListener('change', saveFiles);
+
+  $('makeBtn').addEventListener('click', function(){
+    var msg = $('makeMsg');
+    msg.className = 'msg';
+    var name = $('forStudent').value.trim(), email = $('forEmail').value.trim();
+    var lessonId = 'L' + Date.now().toString(36);
+    var parts = [];
+
+    [['p1','staffsight'], ['p2','fretboard']].forEach(function(pair){
+      var raw = $(pair[0]).value.trim();
+      if(!raw) return;
+      var obj;
+      try{ obj = dec(extractCode(raw)); }catch(e){ return; }
+      var kind = kindOf(obj);
+      if(!kind || kind === 'lesson') return;
+      // The student's name and the results address are stamped into each
+      // part, so both apps greet them and report back the same way.
+      if(name) { if(kind === 'fretboard') obj.student = name; else obj.st = name; }
+      if(email){ if(kind === 'fretboard') obj.teacherEmail = email; else obj.te = email; }
+      if(kind === 'staffsight') obj.li = lessonId;
+      parts.push({ kind: kind, d: enc(obj) });
+    });
+
+    if(!parts.length){
+      msg.textContent = 'Paste at least one assignment link or code above.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    var lesson = { app:'lesson', v:1, t: $('lessonName').value.trim() || 'Practice', li: lessonId, parts: parts };
+    if(name) lesson.st = name;
+    if(email) lesson.te = email;
+
+    var code = enc(lesson);
+    var out = $('outCode');
+    out.value = code;
+    out.hidden = false;
+    out.focus(); out.setSelectionRange(0, code.length);
+    var link = location.href.split('#')[0] + '#l=' + code;
+    function ok(what){ msg.textContent = what; msg.className = 'msg ok'; }
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(code).then(
+          function(){ ok('Code copied (' + parts.length + ' part' + (parts.length>1?'s':'') + '). Send it to ' + (name||'your student') + '.'); },
+          function(){ ok('Code ready above - copy it by hand.'); });
+      } else { ok('Code ready above - copy it by hand.'); }
+    } catch(e){ ok('Code ready above - copy it by hand.'); }
+    $('linkNote') || (function(){
+      var n = document.createElement('p');
+      n.id = 'linkNote'; n.className = 'msg';
+      n.textContent = 'Direct link: ' + link;
+      n.style.wordBreak = 'break-all';
+      msg.parentNode.appendChild(n);
+    })();
+    if($('linkNote')) $('linkNote').textContent = 'Direct link: ' + link;
+  });
+
+  $('roleToggle').addEventListener('click', function(e){
+    e.preventDefault();
+    show($('teacherCard').hidden ? 'teacher' : 'entry');
+  });
+
+  /* ---------- boot ---------- */
+  var m = /[#&](?:l|a|g)=([^&]+)/.exec(location.hash || '');
+  if(location.hash.indexOf('teacher') !== -1){
+    show('teacher');
+  } else if(m){
+    show('entry');
+    handleCode(location.hash);
+  } else {
+    var saved = fetchLocal('hub.lesson');
+    if(saved){
+      try{ renderLesson(dec(saved), saved); }
+      catch(e){ show('entry'); }
+    } else {
+      show('entry');
+    }
+  }
+})();
+</script>
+</body>
+</html>
