@@ -1,0 +1,1832 @@
+<title>Staff Sight</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500..700;1,9..144,500..700&family=Work+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+  :root{
+    --bg:#F1EBDC;
+    --surface:#FFFFFF;
+    --surface-2:#FAF5E9;
+    --ink:#241E15;
+    --ink-soft:#746A56;
+    --ink-faint:#A79A81;
+    --line:#DED2B4;
+    --line-strong:#C9BA92;
+    --accent:#9C5A2E;
+    --accent-ink:#FFF9EE;
+    --good:#2E7D52;
+    --good-bg:#E4F2E8;
+    --bad:#B23A2E;
+    --bad-bg:#F7E6E1;
+    --ring-track:#E3D8BE;
+    --shadow: 0 1px 2px rgba(36,30,21,.06), 0 8px 24px -12px rgba(36,30,21,.18);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#161209;
+      --surface:#211B10;
+      --surface-2:#2A2313;
+      --ink:#F3ECDA;
+      --ink-soft:#BCAE8C;
+      --ink-faint:#82765C;
+      --line:#3B3218;
+      --line-strong:#4D4220;
+      --accent:#E0A362;
+      --accent-ink:#221807;
+      --good:#5FBE8B;
+      --good-bg:#1C3226;
+      --bad:#E88676;
+      --bad-bg:#3A2119;
+      --ring-track:#39311A;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 30px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#161209;
+    --surface:#211B10;
+    --surface-2:#2A2313;
+    --ink:#F3ECDA;
+    --ink-soft:#BCAE8C;
+    --ink-faint:#82765C;
+    --line:#3B3218;
+    --line-strong:#4D4220;
+    --accent:#E0A362;
+    --accent-ink:#221807;
+    --good:#5FBE8B;
+    --good-bg:#1C3226;
+    --bad:#E88676;
+    --bad-bg:#3A2119;
+    --ring-track:#39311A;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 30px -12px rgba(0,0,0,.6);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Work Sans',system-ui,sans-serif;
+    padding-inline:16px;
+    padding-block:28px;
+    min-height:100%;
+    display:flex;
+    justify-content:center;
+  }
+  .app{
+    width:100%;
+    max-width:640px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+
+  /* ---------- header ---------- */
+  header.top{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:1.7rem;
+    letter-spacing:-.01em;
+    margin:0;
+  }
+  .brand .clefs{
+    font-family:'Apple Symbols','Segoe UI Symbol',serif;
+    font-size:1.15rem;
+    color:var(--accent);
+    opacity:.85;
+  }
+  .tagline{
+    margin:2px 0 0;
+    font-size:.85rem;
+    color:var(--ink-soft);
+  }
+  .scorebar{
+    display:flex;
+    gap:14px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:.8rem;
+    color:var(--ink-soft);
+  }
+  .scorebar b{
+    color:var(--ink);
+    font-weight:700;
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* ---------- settings panel ---------- */
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:14px;
+    box-shadow:var(--shadow);
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .panel-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    align-items:flex-start;
+  }
+  .field{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    flex:1 1 140px;
+    min-width:0;
+  }
+  .field label.field-label{
+    font-size:.68rem;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--ink-faint);
+    font-weight:600;
+  }
+  .seg{
+    display:flex;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:9px;
+    padding:3px;
+    gap:2px;
+  }
+  .seg button{
+    flex:1;
+    border:none;
+    background:transparent;
+    color:var(--ink-soft);
+    font-family:inherit;
+    font-size:.82rem;
+    font-weight:600;
+    padding:7px 8px;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  .seg button.active{
+    background:var(--accent);
+    color:var(--accent-ink);
+  }
+  .seg button:disabled{ opacity:.4; cursor:not-allowed; }
+  select{
+    appearance:none;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    color:var(--ink);
+    font-family:'JetBrains Mono',monospace;
+    font-size:.82rem;
+    font-weight:600;
+    padding:8px 10px;
+    cursor:pointer;
+  }
+  .range-pair{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .range-pair span{ color:var(--ink-faint); font-size:.8rem; }
+
+  /* ---------- custom set builder ---------- */
+  .builder{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    border-top:1px solid var(--line);
+    padding-top:14px;
+  }
+  .quick-row{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:6px;
+  }
+  .quick-row .field-label{
+    font-size:.68rem;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--ink-faint);
+    font-weight:600;
+    margin-right:4px;
+  }
+  .chip{
+    border:1px solid var(--line-strong);
+    background:var(--surface-2);
+    color:var(--ink-soft);
+    font-family:inherit;
+    font-size:.76rem;
+    font-weight:600;
+    padding:5px 11px;
+    border-radius:999px;
+    cursor:pointer;
+  }
+  .chip:hover{ color:var(--ink); border-color:var(--accent); }
+  .pick-count{
+    margin-left:auto;
+    font-family:'JetBrains Mono',monospace;
+    font-size:.75rem;
+    color:var(--ink-faint);
+  }
+  .picker{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    overflow-x:auto;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:6px 4px;
+  }
+  .picker svg{
+    display:block;
+    width:100%;
+    min-width:440px;
+    height:auto;
+  }
+  .pick-hit{ fill:transparent; cursor:pointer; }
+  .pick-hit:focus{ outline:none; }
+  .pick-hit:focus-visible{ stroke:var(--accent); stroke-width:1.5; }
+  .pick-head{ fill:transparent; stroke:var(--ink-faint); stroke-width:1.2; }
+  .pick-head.on{ fill:var(--accent); stroke:var(--accent); }
+  .pick-acc{ fill:var(--ink-faint); }
+  .pick-acc.on{ fill:var(--ink); }
+  .pick-label{
+    fill:var(--ink-faint);
+    font-family:'JetBrains Mono',monospace;
+    font-size:9px;
+  }
+  .pick-label.on{ fill:var(--accent); font-weight:700; }
+  .save-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:center;
+  }
+  .save-row input{
+    flex:1 1 180px;
+    min-width:0;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    color:var(--ink);
+    font-family:inherit;
+    font-size:.85rem;
+    padding:8px 10px;
+  }
+  .save-row input::placeholder{ color:var(--ink-faint); }
+  .file-btn.danger{ color:var(--bad); }
+  .file-btn:disabled{ opacity:.4; cursor:not-allowed; }
+  .builder-note{
+    margin:0;
+    font-size:.75rem;
+    color:var(--ink-faint);
+  }
+
+  .midi-import{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    background:var(--surface-2);
+    border:1px dashed var(--line-strong);
+    border-radius:10px;
+    padding:12px;
+  }
+  .midi-import p{
+    margin:0;
+    font-size:.78rem;
+    color:var(--ink-soft);
+    line-height:1.4;
+  }
+  .file-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .file-btn{
+    border-radius:999px;
+    padding:8px 16px;
+    font-family:inherit;
+    font-weight:600;
+    font-size:.8rem;
+    cursor:pointer;
+    border:1px solid var(--line-strong);
+    background:var(--surface);
+    color:var(--ink);
+  }
+  input[type="file"]{ display:none; }
+  .midi-status{
+    font-family:'JetBrains Mono',monospace;
+    font-size:.75rem;
+    color:var(--ink-faint);
+  }
+  .midi-status.ready{ color:var(--good); }
+  .midi-status.error{ color:var(--bad); }
+
+  /* ---------- stage ---------- */
+  .stage{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    padding:22px 18px 24px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:18px;
+    position:relative;
+    overflow:hidden;
+  }
+
+  .pointswrap{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2px;
+  }
+  .points-num{
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+    font-size:3.4rem;
+    line-height:1;
+    color:var(--ink);
+    font-variant-numeric:tabular-nums;
+    transition:color .2s;
+  }
+  .points-num.low{ color:var(--bad); }
+  .points-label{
+    font-size:.68rem;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--ink-faint);
+    font-weight:600;
+  }
+
+  .staffbox{
+    width:100%;
+    max-width:420px;
+  }
+  svg#staffsvg{
+    width:100%;
+    height:auto;
+    display:block;
+  }
+  .staff-line{ stroke:var(--ink); stroke-width:1.4; }
+  .ledger-line{ stroke:var(--ink); stroke-width:1.4; }
+  .note-head{ fill:var(--accent); }
+  .clef-glyph{ fill:var(--ink); }
+  .accidental-glyph{ fill:var(--ink); }
+  .flash-good .note-head{ fill:var(--good); }
+  .flash-bad .note-head{ fill:var(--bad); }
+
+  .feedback{
+    min-height:1.4em;
+    font-family:'JetBrains Mono',monospace;
+    font-size:.9rem;
+    font-weight:700;
+    letter-spacing:.02em;
+    color:var(--ink-faint);
+    text-align:center;
+  }
+  .feedback.good{ color:var(--good); }
+  .feedback.bad{ color:var(--bad); }
+
+  /* start screen */
+  .start-cta{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+  }
+  .start-btn{
+    border-radius:999px;
+    padding:14px 34px;
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:1.15rem;
+    cursor:pointer;
+    border:1px solid var(--accent);
+    background:var(--accent);
+    color:var(--accent-ink);
+  }
+  .start-btn:disabled{ opacity:.45; cursor:not-allowed; }
+  .start-sub{
+    font-size:.78rem;
+    color:var(--ink-faint);
+    text-align:center;
+    max-width:320px;
+  }
+
+  /* click-mode note buttons */
+  .notegrid{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:8px;
+    width:100%;
+    max-width:420px;
+  }
+  .notegrid button{
+    aspect-ratio:1;
+    border-radius:10px;
+    border:1px solid var(--line-strong);
+    background:var(--surface-2);
+    color:var(--ink);
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:1.15rem;
+    cursor:pointer;
+  }
+  .notegrid button:active{ transform:translateY(1px); }
+  .notegrid button.good{ background:var(--good-bg); border-color:var(--good); color:var(--good); }
+  .notegrid button.bad{ background:var(--bad-bg); border-color:var(--bad); color:var(--bad); }
+
+  /* listen mode */
+  .listenpanel{
+    width:100%;
+    max-width:420px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+  }
+  .mic-status{
+    font-size:.8rem;
+    color:var(--ink-soft);
+    font-family:'JetBrains Mono',monospace;
+    text-align:center;
+  }
+  .mic-help{
+    font-size:.72rem;
+    color:var(--ink-faint);
+    text-align:center;
+    max-width:340px;
+    line-height:1.4;
+  }
+  .meter{
+    width:100%;
+    height:10px;
+    border-radius:6px;
+    background:var(--ring-track);
+    overflow:hidden;
+  }
+  .meter-fill{
+    height:100%;
+    width:0%;
+    background:var(--accent);
+    border-radius:6px;
+    transition:width .05s linear;
+  }
+  .heard{
+    font-family:'JetBrains Mono',monospace;
+    font-size:1.6rem;
+    font-weight:700;
+    color:var(--ink-faint);
+    min-height:1.3em;
+  }
+  .mic-btn{
+    border:1px solid var(--accent);
+    background:var(--accent);
+    color:var(--accent-ink);
+    font-family:inherit;
+    font-weight:600;
+    font-size:.85rem;
+    padding:10px 18px;
+    border-radius:999px;
+    cursor:pointer;
+  }
+  .mic-btn.off{
+    background:transparent;
+    color:var(--accent);
+  }
+
+  .controls{
+    display:flex;
+    gap:10px;
+    justify-content:center;
+  }
+  .btn{
+    border-radius:999px;
+    padding:10px 20px;
+    font-family:inherit;
+    font-weight:600;
+    font-size:.85rem;
+    cursor:pointer;
+    border:1px solid var(--line-strong);
+    background:var(--surface-2);
+    color:var(--ink);
+  }
+  .btn.primary{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:var(--accent-ink);
+  }
+
+  footer.hint{
+    text-align:center;
+    font-size:.75rem;
+    color:var(--ink-faint);
+  }
+
+  /* summary overlay */
+  .overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(20,16,8,.45);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    z-index:10;
+  }
+  .summary{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    padding:26px 24px;
+    width:100%;
+    max-width:380px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    text-align:center;
+  }
+  .summary h2{
+    font-family:'Fraunces',serif;
+    margin:0;
+    font-size:1.4rem;
+  }
+  .stat-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+  .stat{
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 8px;
+  }
+  .stat .n{
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+    font-size:1.4rem;
+    font-variant-numeric:tabular-nums;
+  }
+  .stat .l{
+    font-size:.68rem;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--ink-faint);
+    margin-top:2px;
+  }
+
+  [hidden]{ display:none !important; }
+
+  @media (max-width:420px){
+    .panel-row{ gap:10px; }
+    .field{ flex:1 1 100px; }
+  }
+</style>
+
+<div class="app">
+
+  <header class="top">
+    <div>
+      <div class="brand">
+        <h1>Staff Sight</h1>
+        <span class="clefs">&#x1D11E; &#x1D122;</span>
+      </div>
+      <p class="tagline">Name the note. Beat the clock.</p>
+    </div>
+    <div class="scorebar" id="scorebar">
+      <span>streak <b id="streakNum">0</b></span>
+      <span>score <b id="scoreNum">0/0</b></span>
+    </div>
+  </header>
+
+  <section class="panel" id="settingsPanel">
+    <div class="panel-row">
+      <div class="field">
+        <label class="field-label">Clef</label>
+        <div class="seg" id="clefSeg">
+          <button data-val="treble" class="active">Treble</button>
+          <button data-val="bass">Bass</button>
+          <button data-val="both">Both</button>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label">Answer by</label>
+        <div class="seg" id="modeSeg">
+          <button data-val="click" class="active">Click</button>
+          <button data-val="listen">Listen</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-row">
+      <div class="field">
+        <label class="field-label">Time per note</label>
+        <div class="seg" id="timerSeg">
+          <button data-val="0">Off</button>
+          <button data-val="8">Easy &#183; 8s</button>
+          <button data-val="5" class="active">Medium &#183; 5s</button>
+          <button data-val="3">Hard &#183; 3s</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-row">
+      <div class="field">
+        <label class="field-label">Practice on</label>
+        <div class="seg" id="sourceSeg">
+          <button data-val="random" class="active">Random notes</button>
+          <button data-val="custom">Custom set</button>
+          <button data-val="midi">My piece (MIDI)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-row">
+      <div class="field" id="rangeField">
+        <label class="field-label">Note range (auto-set by clef)</label>
+        <div class="range-pair">
+          <select id="rangeMin" aria-label="Lowest note"></select>
+          <span>to</span>
+          <select id="rangeMax" aria-label="Highest note"></select>
+        </div>
+      </div>
+      <div class="field" id="sessionLenField">
+        <label class="field-label" for="sessionLen">Session length</label>
+        <select id="sessionLen">
+          <option value="10">10 notes</option>
+          <option value="20" selected>20 notes</option>
+          <option value="40">40 notes</option>
+          <option value="0">Endless</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="builder" id="builder" hidden>
+      <div class="panel-row">
+        <div class="field">
+          <label class="field-label" for="presetSel">Preset</label>
+          <select id="presetSel"></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="keySel">Key</label>
+          <select id="keySel"></select>
+        </div>
+      </div>
+      <div class="quick-row">
+        <span class="field-label">Select</span>
+        <button class="chip" type="button" data-q="all">All</button>
+        <button class="chip" type="button" data-q="lines">Lines</button>
+        <button class="chip" type="button" data-q="spaces">Spaces</button>
+        <button class="chip" type="button" data-q="staff">On the staff</button>
+        <button class="chip" type="button" data-q="ledger">Off the staff</button>
+        <button class="chip" type="button" data-q="none">Clear</button>
+        <span class="pick-count" id="pickCount">0 notes</span>
+      </div>
+      <div class="picker" id="picker"></div>
+      <div class="save-row">
+        <input type="text" id="presetName" placeholder="Name this set, e.g. Treble spaces" maxlength="40" aria-label="Preset name">
+        <button class="file-btn" type="button" id="savePresetBtn">Save preset</button>
+        <button class="file-btn danger" type="button" id="deletePresetBtn" disabled>Delete preset</button>
+      </div>
+      <p class="builder-note" id="builderNote">Tap notes on the staff to add or remove them. Notes are drawn at random from this set.</p>
+    </div>
+
+    <div class="midi-import" id="midiImport" hidden>
+      <p>Export your piece from MuseScore as <b>File &#8594; Export &#8594; MIDI</b>, then load the .mid file here. Notes play through in order, exactly as written, including sharps and flats, which are still named by their staff letter.</p>
+      <div class="file-row">
+        <button class="file-btn" id="midiPickBtn" type="button">Choose MIDI file</button>
+        <input type="file" id="midiFile" accept=".mid,.midi,audio/midi">
+        <span class="midi-status" id="midiStatus">No file loaded yet</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="pointswrap" id="pointswrap" hidden>
+      <div class="points-num" id="pointsNum">10</div>
+      <div class="points-label">points left</div>
+    </div>
+
+    <div class="staffbox">
+      <svg id="staffsvg" viewBox="0 0 400 180" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+
+    <div class="feedback" id="feedback">&nbsp;</div>
+
+    <div class="start-cta" id="startCta">
+      <button class="start-btn" id="startBtn">Start practice</button>
+      <p class="start-sub" id="startSub">Choose your settings above, then start when you're ready.</p>
+    </div>
+
+    <div class="notegrid" id="notegrid" hidden></div>
+
+    <div class="listenpanel" id="listenpanel" hidden>
+      <button class="mic-btn off" id="micToggle">Turn on microphone</button>
+      <div class="mic-status" id="micStatus">Microphone is off</div>
+      <div class="meter"><div class="meter-fill" id="meterFill"></div></div>
+      <div class="heard" id="heardNote">&nbsp;</div>
+      <p class="mic-help">If Safari doesn't ask for microphone permission here, this preview pane may be blocking it. Open the standalone file Claude sent you directly in Safari instead - it will prompt normally there.</p>
+    </div>
+
+    <div class="controls" id="runControls" hidden>
+      <button class="btn" id="skipBtn" hidden>Skip note</button>
+      <button class="btn" id="stopBtn">Stop &amp; exit</button>
+    </div>
+  </section>
+
+  <footer class="hint" id="hint">Pick a clef and answer mode above, then press Start.</footer>
+</div>
+
+<div class="overlay" id="summaryOverlay" hidden>
+  <div class="summary">
+    <h2 id="summaryTitle">Session complete</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="n" id="sumCorrect">0</div><div class="l">Correct</div></div>
+      <div class="stat"><div class="n" id="sumAcc">0%</div><div class="l">Accuracy</div></div>
+      <div class="stat"><div class="n" id="sumStreak">0</div><div class="l">Best streak</div></div>
+      <div class="stat"><div class="n" id="sumPoints">0</div><div class="l">Total points</div></div>
+    </div>
+    <button class="btn primary" id="doneBtn">Back to start</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ================= note model ================= */
+  // Natural letters, staff position derived from a diatonic index.
+  // Accidental (null | 'sharp') is carried only for display/labels - the
+  // quiz answer is always the staff letter, exactly as sight-reading works.
+  var LETTERS = ['C','D','E','F','G','A','B'];
+  var LETTER_IDX = {C:0,D:1,E:2,F:3,G:4,A:5,B:6};
+  var IDX_LETTER = ['C','D','E','F','G','A','B'];
+  var PITCH_CLASS = [
+    {l:'C',a:null},{l:'C',a:'sharp'},{l:'D',a:null},{l:'D',a:'sharp'},
+    {l:'E',a:null},{l:'F',a:null},{l:'F',a:'sharp'},{l:'G',a:null},
+    {l:'G',a:'sharp'},{l:'A',a:null},{l:'A',a:'sharp'},{l:'B',a:null}
+  ];
+
+  function diatonicIndex(letter, octave){ return octave*7 + LETTER_IDX[letter]; }
+
+  function midiToNote(midi){
+    var pc = ((midi%12)+12)%12;
+    var octave = Math.floor(midi/12)-1;
+    var info = PITCH_CLASS[pc];
+    return {letter:info.l, accidental:info.a, octave:octave, di:diatonicIndex(info.l, octave)};
+  }
+
+  // Selectable natural-note pool for random practice: C2 .. C6 - wide enough
+  // to cover both clefs plus headroom for a wider manual range.
+  var NOTE_POOL = [];
+  (function build(){
+    var seq = ['C','D','E','F','G','A','B'];
+    for(var oct=2; oct<=6; oct++){
+      for(var i=0;i<seq.length;i++){
+        var letter = seq[i];
+        if(oct===6 && letter!=='C') continue;
+        NOTE_POOL.push({letter:letter, octave:oct, accidental:null, di:diatonicIndex(letter,oct)});
+      }
+    }
+  })();
+  NOTE_POOL.sort(function(a,b){ return a.di-b.di; });
+
+  function letterFromDi(di){
+    var octave = Math.floor(di/7);
+    var idx = ((di%7)+7)%7;
+    return {letter:IDX_LETTER[idx], octave:octave};
+  }
+
+  // Standard teaching range for a clef: the 5 staff lines plus two ledger
+  // lines above and below (each ledger line is 2 diatonic steps out).
+  function autoRangeForClef(clef){
+    if(clef==='both'){
+      var t = autoRangeForClef('treble'), b = autoRangeForClef('bass');
+      return { lo:b.lo, hi:t.hi };
+    }
+    var ref = clef==='treble' ? TREBLE_REF : BASS_REF;
+    return { lo: letterFromDi(ref-4), hi: letterFromDi(ref+8+4) };
+  }
+
+  // Glyphs built from code points so the source file stays pure ASCII.
+  var SHARP = String.fromCharCode(0x266F);
+  var FLAT = String.fromCharCode(0x266D);
+  var G_CLEF = String.fromCodePoint(0x1D11E);
+  var F_CLEF = String.fromCodePoint(0x1D122);
+  var DOT = String.fromCharCode(0xB7);
+
+  function accidentalGlyph(a){ return a==='sharp' ? SHARP : a==='flat' ? FLAT : ''; }
+  function noteLabel(n){ return n.letter + accidentalGlyph(n.accidental) + n.octave; }
+
+  // Pitch class (0-11) of a spelled note. Listen mode compares these, so a
+  // staff F-sharp needs an F-sharp played, not an F.
+  var NATURAL_PC = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+  function pitchClassOf(n){
+    var off = n.accidental==='sharp' ? 1 : n.accidental==='flat' ? -1 : 0;
+    return ((NATURAL_PC[n.letter] + off) % 12 + 12) % 12;
+  }
+
+  // Major keys and the letters their signature alters.
+  var KEYS = [
+    {id:'C',  label:'C major / A minor',  acc:null,    letters:[]},
+    {id:'G',  label:'G major / E minor',  acc:'sharp', letters:['F']},
+    {id:'D',  label:'D major / B minor',  acc:'sharp', letters:['F','C']},
+    {id:'A',  label:'A major / F' + SHARP + ' minor', acc:'sharp', letters:['F','C','G']},
+    {id:'E',  label:'E major / C' + SHARP + ' minor', acc:'sharp', letters:['F','C','G','D']},
+    {id:'B',  label:'B major / G' + SHARP + ' minor', acc:'sharp', letters:['F','C','G','D','A']},
+    {id:'F',  label:'F major / D minor',  acc:'flat',  letters:['B']},
+    {id:'Bb', label:'B' + FLAT + ' major / G minor', acc:'flat', letters:['B','E']},
+    {id:'Eb', label:'E' + FLAT + ' major / C minor', acc:'flat', letters:['B','E','A']},
+    {id:'Ab', label:'A' + FLAT + ' major / F minor', acc:'flat', letters:['B','E','A','D']},
+    {id:'Db', label:'D' + FLAT + ' major / B' + FLAT + ' minor', acc:'flat', letters:['B','E','A','D','G']}
+  ];
+  function keyById(id){
+    for(var i=0;i<KEYS.length;i++){ if(KEYS[i].id===id) return KEYS[i]; }
+    return KEYS[0];
+  }
+  function accidentalFor(letter, keyId){
+    var k = keyById(keyId);
+    return k.letters.indexOf(letter) !== -1 ? k.acc : null;
+  }
+
+  /* ================= staff geometry ================= */
+  var TREBLE_REF = diatonicIndex('E',4);
+  var BASS_REF = diatonicIndex('G',2);
+  var MIDDLE_C_DI = diatonicIndex('C',4);
+  var STEP = 6; // px per diatonic step (half a line-spacing)
+  var STAFF_TOP_Y = { treble: 40, bass: 40 };
+  var LINES = 5;
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+
+  function refFor(clef){ return clef==='treble' ? TREBLE_REF : BASS_REF; }
+
+  function staffY(clef, note){
+    var bottomLineY = STAFF_TOP_Y[clef] + (LINES-1)*STEP*2;
+    return bottomLineY - (note.di - refFor(clef))*STEP;
+  }
+
+  function svgEl(tag, attrs){
+    var el = document.createElementNS(SVG_NS, tag);
+    for(var k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  // The clef glyph sits with its left edge at `left - 38`, `top` = top staff line.
+  function drawClefGlyph(svg, clef, left, top){
+    var clefFont = "'Apple Symbols','Segoe UI Symbol',serif";
+    var t = clef==='treble'
+      ? svgEl('text',{x:left-38,y:top+4*STEP*2-2,'font-size':64,class:'clef-glyph','font-family':clefFont})
+      : svgEl('text',{x:left-38,y:top+2*STEP*2+6,'font-size':34,class:'clef-glyph','font-family':clefFont});
+    t.textContent = clef==='treble' ? G_CLEF : F_CLEF;
+    svg.appendChild(t);
+  }
+
+  // Short ledger lines between the staff and a note at height `ny`.
+  function drawLedgers(svg, x, ny, top, halfWidth){
+    var bottomLineY = top + (LINES-1)*STEP*2;
+    var ly;
+    if(ny > bottomLineY){
+      for(ly = bottomLineY + STEP*2; ly <= ny + 0.1; ly += STEP*2){
+        svg.appendChild(svgEl('line',{x1:x-halfWidth,y1:ly,x2:x+halfWidth,y2:ly,class:'ledger-line'}));
+      }
+    } else if(ny < top){
+      for(ly = top - STEP*2; ly >= ny - 0.1; ly -= STEP*2){
+        svg.appendChild(svgEl('line',{x1:x-halfWidth,y1:ly,x2:x+halfWidth,y2:ly,class:'ledger-line'}));
+      }
+    }
+  }
+
+  function drawStaff(clef, note, svg, flashClass){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.setAttribute('class', flashClass||'');
+    var left = 60, right = 340;
+    var top = STAFF_TOP_Y[clef];
+
+    for(var i=0;i<LINES;i++){
+      var y = top + i*STEP*2;
+      svg.appendChild(svgEl('line',{x1:left,y1:y,x2:right,y2:y,class:'staff-line'}));
+    }
+    drawClefGlyph(svg, clef, left, top);
+
+    if(!note) return;
+
+    var ny = staffY(clef, note);
+    var nx = 210;
+    drawLedgers(svg, nx, ny, top, 14);
+
+    if(note.accidental){
+      var accText = svgEl('text',{x:nx-27,y:ny+(note.accidental==='flat'?3:5),'font-size':17,class:'accidental-glyph','font-family':"'Apple Symbols','Segoe UI Symbol',serif"});
+      accText.textContent = accidentalGlyph(note.accidental);
+      svg.appendChild(accText);
+    }
+
+    svg.appendChild(svgEl('ellipse',{cx:nx,cy:ny,rx:9,ry:7,class:'note-head',transform:'rotate(-18 '+nx+' '+ny+')'}));
+
+    var stemUp = ny > top + (LINES-1)*STEP;
+    var stemX = stemUp ? nx+8.5 : nx-8.5;
+    var stemY2 = stemUp ? ny-34 : ny+34;
+    svg.appendChild(svgEl('line',{x1:stemX,y1:ny,x2:stemX,y2:stemY2,stroke:'var(--ink)','stroke-width':1.6}));
+  }
+
+  /* ================= MIDI import ================= */
+  function parseMidiFile(buffer){
+    var data = new Uint8Array(buffer);
+    var pos = 0;
+    function u32(){ var v=((data[pos]<<24)|(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3])>>>0; pos+=4; return v; }
+    function u16(){ var v=(data[pos]<<8)|data[pos+1]; pos+=2; return v; }
+    function str(len){ var s=''; for(var i=0;i<len;i++) s+=String.fromCharCode(data[pos+i]); pos+=len; return s; }
+    function varLen(){ var v=0,b; do{ b=data[pos++]; v=(v*128)+(b&0x7f); }while(b&0x80); return v; }
+
+    var header = str(4);
+    if(header!=='MThd') throw new Error('not a MIDI file');
+    var hlen = u32();
+    var headerEnd = pos + hlen;
+    /* format */ u16();
+    var ntrks = u16();
+    /* division */ u16();
+    pos = headerEnd;
+
+    var notes = [];
+    for(var t=0; t<ntrks && pos < data.length; t++){
+      var chunkId = str(4);
+      var clen = u32();
+      var trackEnd = pos + clen;
+      if(chunkId!=='MTrk'){ pos = trackEnd; continue; }
+      var tick = 0, runningStatus = 0;
+      while(pos < trackEnd){
+        tick += varLen();
+        var statusByte = data[pos];
+        if(statusByte < 0x80){ statusByte = runningStatus; }
+        else { pos++; runningStatus = statusByte; }
+        var type = statusByte & 0xF0;
+        var channel = statusByte & 0x0F;
+        if(statusByte===0xFF){
+          pos++; var len = varLen(); pos += len;
+        } else if(statusByte===0xF0 || statusByte===0xF7){
+          var len2 = varLen(); pos += len2;
+        } else if(type===0x90){
+          var note = data[pos++], vel = data[pos++];
+          if(vel>0 && channel!==9) notes.push({tick:tick, midi:note});
+        } else if(type===0x80 || type===0xA0 || type===0xB0 || type===0xE0){
+          pos += 2;
+        } else if(type===0xC0 || type===0xD0){
+          pos += 1;
+        } else {
+          pos = trackEnd; // malformed/unsupported - bail this track
+        }
+      }
+      pos = trackEnd;
+    }
+    notes.sort(function(a,b){ return a.tick-b.tick; });
+    return notes.map(function(n){ return n.midi; });
+  }
+
+  /* ================= app state ================= */
+  var state = {
+    clef: 'treble',
+    mode: 'click',
+    source: 'random',
+    timerSec: 5,
+    sessionLen: 20,
+    rangeMinIdx: 0,
+    rangeMaxIdx: NOTE_POOL.length-1,
+    midiSequence: [],
+    midiIndex: 0,
+    effLen: 20,
+    current: null,
+    currentClef: 'treble',
+    qStart: 0,
+    correct: 0,
+    answered: 0,
+    streak: 0,
+    bestStreak: 0,
+    totalPoints: 0,
+    times: [],
+    timerHandle: null,
+    graceDeadline: 0,
+    wrongDeductions: 0,
+    timeDeductions: 0,
+    running: false,
+    awaitingAnswer: false
+  };
+
+  /* ================= DOM refs ================= */
+  var $ = function(id){ return document.getElementById(id); };
+  var svg = $('staffsvg');
+  var feedback = $('feedback');
+  var notegrid = $('notegrid');
+  var listenpanel = $('listenpanel');
+  var pointswrap = $('pointswrap');
+  var pointsNum = $('pointsNum');
+  var skipBtn = $('skipBtn');
+  var stopBtn = $('stopBtn');
+  var streakNum = $('streakNum');
+  var scoreNum = $('scoreNum');
+  var rangeMin = $('rangeMin');
+  var rangeMax = $('rangeMax');
+  var sessionLenSel = $('sessionLen');
+  var hint = $('hint');
+  var startCta = $('startCta');
+  var startBtn = $('startBtn');
+  var startSub = $('startSub');
+  var runControls = $('runControls');
+  var midiImport = $('midiImport');
+  var rangeField = $('rangeField');
+  var builder = $('builder');
+  var sessionLenField = $('sessionLenField');
+  var midiStatus = $('midiStatus');
+
+  /* populate range selects */
+  NOTE_POOL.forEach(function(n, i){
+    var o1 = document.createElement('option'); o1.value=i; o1.textContent = noteLabel(n);
+    rangeMin.appendChild(o1);
+    var o2 = document.createElement('option'); o2.value=i; o2.textContent = noteLabel(n);
+    rangeMax.appendChild(o2);
+  });
+  function idxOf(letter,oct){
+    for(var i=0;i<NOTE_POOL.length;i++){ if(NOTE_POOL[i].letter===letter && NOTE_POOL[i].octave===oct) return i; }
+    return 0;
+  }
+
+  // Set the range to the standard staff + 2 ledger lines for a clef.
+  // Called on load and whenever the clef choice changes.
+  function applyAutoRange(clef){
+    var r = autoRangeForClef(clef);
+    var loIdx = idxOf(r.lo.letter, r.lo.octave);
+    var hiIdx = idxOf(r.hi.letter, r.hi.octave);
+    rangeMin.value = loIdx;
+    rangeMax.value = hiIdx;
+    state.rangeMinIdx = loIdx;
+    state.rangeMaxIdx = hiIdx;
+  }
+  applyAutoRange('treble');
+
+  rangeMin.addEventListener('change', function(){
+    state.rangeMinIdx = +rangeMin.value;
+    if(state.rangeMinIdx > state.rangeMaxIdx){ state.rangeMaxIdx = state.rangeMinIdx; rangeMax.value = state.rangeMaxIdx; }
+  });
+  rangeMax.addEventListener('change', function(){
+    state.rangeMaxIdx = +rangeMax.value;
+    if(state.rangeMaxIdx < state.rangeMinIdx){ state.rangeMinIdx = state.rangeMaxIdx; rangeMin.value = state.rangeMinIdx; }
+  });
+  sessionLenSel.addEventListener('change', function(){ state.sessionLen = +sessionLenSel.value; });
+
+  /* segmented controls */
+  function wireSeg(id, onPick){
+    var seg = $(id);
+    seg.addEventListener('click', function(e){
+      var btn = e.target.closest('button');
+      if(!btn || btn.disabled) return;
+      Array.prototype.forEach.call(seg.children, function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      onPick(btn.getAttribute('data-val'));
+    });
+  }
+  function setSegValue(id, val){
+    Array.prototype.forEach.call($(id).children, function(b){
+      b.classList.toggle('active', b.getAttribute('data-val')===val);
+    });
+  }
+  wireSeg('clefSeg', function(v){
+    state.clef = v;
+    applyAutoRange(v);
+    if(state.source==='custom'){
+      markUnsaved();
+      if(countSelected()===0) applyPreset(defaultPresetFor(v));
+      else renderPicker();
+    }
+    refreshStartAvailability();
+  });
+  wireSeg('modeSeg', function(v){
+    state.mode = v;
+    notegrid.hidden = !state.running || v!=='click';
+    // The listen panel (and its mic button) shows as soon as Listen mode is
+    // picked, not just once running - that's what lets the mic permission
+    // prompt happen before Start is pressed.
+    listenpanel.hidden = v!=='listen';
+    if(v!=='listen') stopMic();
+  });
+  wireSeg('timerSeg', function(v){ state.timerSec = +v; });
+  wireSeg('sourceSeg', function(v){
+    state.source = v;
+    midiImport.hidden = v!=='midi';
+    builder.hidden = v!=='custom';
+    rangeField.hidden = v!=='random';
+    sessionLenField.hidden = v==='midi';
+    if(v==='custom'){
+      if(countSelected()===0) applyPreset(defaultPresetFor(state.clef));
+      else renderPicker();
+    }
+    refreshStartAvailability();
+  });
+
+  function refreshStartAvailability(){
+    if(state.source==='midi' && state.midiSequence.length===0){
+      startBtn.disabled = true;
+      startSub.textContent = 'Load a MIDI file above to practice your own piece.';
+    } else if(state.source==='custom' && countSelected()===0){
+      startBtn.disabled = true;
+      startSub.textContent = 'Pick at least one note in the custom set above.';
+    } else {
+      startBtn.disabled = false;
+      startSub.textContent = "Choose your settings above, then start when you're ready.";
+    }
+  }
+
+  /* click-mode note buttons */
+  LETTERS.forEach(function(l){
+    var b = document.createElement('button');
+    b.textContent = l;
+    b.setAttribute('data-letter', l);
+    b.addEventListener('click', function(){ submitAnswer(l, b); });
+    notegrid.appendChild(b);
+  });
+
+  /* MIDI file picking */
+  $('midiPickBtn').addEventListener('click', function(){ $('midiFile').click(); });
+  $('midiFile').addEventListener('change', function(e){
+    var file = e.target.files[0];
+    if(!file) return;
+    midiStatus.textContent = 'Reading ' + file.name + '...';
+    midiStatus.className = 'midi-status';
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      try{
+        var pitches = parseMidiFile(ev.target.result);
+        if(pitches.length===0) throw new Error('no notes found');
+        state.midiSequence = pitches.slice(0,500).map(midiToNote);
+        midiStatus.textContent = file.name + ' - ' + state.midiSequence.length + ' notes loaded';
+        midiStatus.className = 'midi-status ready';
+      } catch(err){
+        state.midiSequence = [];
+        midiStatus.textContent = "Couldn't read that file - re-export as standard MIDI from MuseScore and try again.";
+        midiStatus.className = 'midi-status error';
+      }
+      refreshStartAvailability();
+    };
+    reader.onerror = function(){
+      state.midiSequence = [];
+      midiStatus.textContent = 'Could not open that file.';
+      midiStatus.className = 'midi-status error';
+      refreshStartAvailability();
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  /* ================= custom set builder ================= */
+  // A selection is a set of "clef:step" keys, where step counts diatonic
+  // steps up from the clef's bottom staff line (0 = bottom line, 8 = top
+  // line). The picker covers the staff plus two ledger lines each way.
+  var PICK_STEPS = [];
+  for(var ps=-4; ps<=12; ps++) PICK_STEPS.push(ps);
+
+  var custom = { key:'C', sel:{}, presetId:'' };
+  var presetSel = $('presetSel');
+  var keySel = $('keySel');
+  var picker = $('picker');
+  var pickCount = $('pickCount');
+  var presetName = $('presetName');
+  var deletePresetBtn = $('deletePresetBtn');
+  var builderNote = $('builderNote');
+  var BUILDER_HINT = builderNote.textContent;
+  var pickCols = {};
+
+  function shownClefs(){ return state.clef==='both' ? ['treble','bass'] : [state.clef]; }
+
+  function noteFromStep(clef, step){
+    var lf = letterFromDi(refFor(clef) + step);
+    return { letter:lf.letter, octave:lf.octave, di:refFor(clef)+step, accidental:accidentalFor(lf.letter, custom.key) };
+  }
+
+  function selectedKeys(){
+    var clefs = shownClefs(), out = [];
+    Object.keys(custom.sel).forEach(function(k){
+      if(custom.sel[k] && clefs.indexOf(k.split(':')[0]) !== -1) out.push(k);
+    });
+    return out;
+  }
+  function countSelected(){ return selectedKeys().length; }
+
+  function selectedNotes(){
+    return selectedKeys().map(function(k){
+      var parts = k.split(':');
+      return { key:k, clef:parts[0], note:noteFromStep(parts[0], +parts[1]) };
+    });
+  }
+
+  function steps(clef, list){ return list.map(function(st){ return clef + ':' + st; }); }
+  var BUILTIN_PRESETS = [
+    {id:'b-treble-lines',  name:'Treble ' + DOT + ' lines',            clef:'treble', key:'C', notes:steps('treble',[0,2,4,6,8])},
+    {id:'b-treble-spaces', name:'Treble ' + DOT + ' spaces',           clef:'treble', key:'C', notes:steps('treble',[1,3,5,7])},
+    {id:'b-treble-c-g',    name:'Treble ' + DOT + ' middle C to G',    clef:'treble', key:'C', notes:steps('treble',[-2,-1,0,1,2])},
+    {id:'b-treble-ledger', name:'Treble ' + DOT + ' off the staff',    clef:'treble', key:'C', notes:steps('treble',[-4,-3,-2,-1,9,10,11,12])},
+    {id:'b-treble-g',      name:'Treble ' + DOT + ' G major',          clef:'treble', key:'G', notes:steps('treble',PICK_STEPS)},
+    {id:'b-bass-lines',    name:'Bass ' + DOT + ' lines',              clef:'bass',   key:'C', notes:steps('bass',[0,2,4,6,8])},
+    {id:'b-bass-spaces',   name:'Bass ' + DOT + ' spaces',             clef:'bass',   key:'C', notes:steps('bass',[1,3,5,7])},
+    {id:'b-bass-d',        name:'Bass ' + DOT + ' D major',            clef:'bass',   key:'D', notes:steps('bass',PICK_STEPS)},
+    {id:'b-both-lines',    name:'Grand staff ' + DOT + ' lines',       clef:'both',   key:'C', notes:steps('treble',[0,2,4,6,8]).concat(steps('bass',[0,2,4,6,8]))}
+  ];
+  function defaultPresetFor(clef){
+    return clef==='bass' ? BUILTIN_PRESETS[5] : clef==='both' ? BUILTIN_PRESETS[8] : BUILTIN_PRESETS[0];
+  }
+
+  // Saved presets live in this browser only. Storage can be blocked
+  // (private windows, previews), so every access is guarded.
+  var STORE_KEY = 'staffsight.presets.v1';
+  function loadUserPresets(){
+    try{
+      var raw = window.localStorage.getItem(STORE_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch(e){ return []; }
+  }
+  function storeUserPresets(arr){
+    try{ window.localStorage.setItem(STORE_KEY, JSON.stringify(arr)); return true; }
+    catch(e){ return false; }
+  }
+  var userPresets = loadUserPresets();
+
+  function findPreset(id){
+    var all = BUILTIN_PRESETS.concat(userPresets);
+    for(var i=0;i<all.length;i++){ if(all[i].id===id) return all[i]; }
+    return null;
+  }
+  function isUserPreset(id){ return id.indexOf('u-')===0; }
+
+  function renderPresetOptions(){
+    presetSel.innerHTML = '';
+    var blank = document.createElement('option');
+    blank.value = ''; blank.textContent = 'Unsaved selection';
+    presetSel.appendChild(blank);
+    function group(label, list){
+      if(!list.length) return;
+      var g = document.createElement('optgroup');
+      g.label = label;
+      list.forEach(function(p){
+        var o = document.createElement('option');
+        o.value = p.id; o.textContent = p.name;
+        g.appendChild(o);
+      });
+      presetSel.appendChild(g);
+    }
+    group('Built-in', BUILTIN_PRESETS);
+    group('Your presets', userPresets);
+    presetSel.value = custom.presetId;
+  }
+
+  KEYS.forEach(function(k){
+    var o = document.createElement('option');
+    o.value = k.id; o.textContent = k.label;
+    keySel.appendChild(o);
+  });
+
+  function applyPreset(p){
+    if(!p) return;
+    custom.key = p.key;
+    keySel.value = p.key;
+    state.clef = p.clef;
+    setSegValue('clefSeg', p.clef);
+    applyAutoRange(p.clef);
+    custom.sel = {};
+    p.notes.forEach(function(k){ custom.sel[k] = true; });
+    custom.presetId = p.id;
+    presetSel.value = p.id;
+    presetName.value = isUserPreset(p.id) ? p.name : '';
+    deletePresetBtn.disabled = !isUserPreset(p.id);
+    builderNote.textContent = BUILDER_HINT;
+    renderPicker();
+    refreshStartAvailability();
+  }
+
+  function markUnsaved(){
+    custom.presetId = '';
+    presetSel.value = '';
+    deletePresetBtn.disabled = true;
+  }
+
+  function updateCount(){
+    var n = countSelected();
+    pickCount.textContent = n + (n===1 ? ' note' : ' notes');
+  }
+
+  function setColState(key){
+    var c = pickCols[key];
+    if(!c) return;
+    var on = !!custom.sel[key];
+    c.head.setAttribute('class', 'pick-head' + (on ? ' on' : ''));
+    c.label.setAttribute('class', 'pick-label' + (on ? ' on' : ''));
+    if(c.acc) c.acc.setAttribute('class', 'pick-acc' + (on ? ' on' : ''));
+    c.hit.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+
+  function toggleKey(key){
+    custom.sel[key] = !custom.sel[key];
+    setColState(key);
+    markUnsaved();
+    updateCount();
+    refreshStartAvailability();
+  }
+
+  // One wide staff per shown clef, every position laid out left to right
+  // like a scale. Tap a position to add or remove it from the set.
+  function renderPicker(){
+    picker.innerHTML = '';
+    pickCols = {};
+    var colW = 26, x0 = 56, W = x0 + PICK_STEPS.length*colW + 10, H = 152, top = 44;
+    var bottomLineY = top + (LINES-1)*STEP*2;
+    shownClefs().forEach(function(clef){
+      var svgP = svgEl('svg',{viewBox:'0 0 '+W+' '+H, role:'group', 'aria-label':(clef==='treble'?'Treble':'Bass')+' clef notes'});
+      for(var i=0;i<LINES;i++){
+        var y = top + i*STEP*2;
+        svgP.appendChild(svgEl('line',{x1:6,y1:y,x2:W-6,y2:y,class:'staff-line'}));
+      }
+      drawClefGlyph(svgP, clef, 46, top);
+      PICK_STEPS.forEach(function(step, i){
+        var key = clef + ':' + step;
+        var note = noteFromStep(clef, step);
+        var x = x0 + i*colW + colW/2;
+        var ny = bottomLineY - step*STEP;
+        drawLedgers(svgP, x, ny, top, 10);
+        var acc = null;
+        if(note.accidental){
+          acc = svgEl('text',{x:x-17,y:ny+4,'font-size':13,'font-family':"'Apple Symbols','Segoe UI Symbol',serif"});
+          acc.textContent = accidentalGlyph(note.accidental);
+          svgP.appendChild(acc);
+        }
+        var head = svgEl('ellipse',{cx:x,cy:ny,rx:6.5,ry:5,transform:'rotate(-18 '+x+' '+ny+')'});
+        svgP.appendChild(head);
+        var label = svgEl('text',{x:x,y:H-6,'text-anchor':'middle'});
+        label.textContent = noteLabel(note);
+        svgP.appendChild(label);
+        var hit = svgEl('rect',{x:x-colW/2,y:0,width:colW,height:H,class:'pick-hit',tabindex:'0',role:'button','aria-label':noteLabel(note)});
+        hit.addEventListener('click', function(){ toggleKey(key); });
+        hit.addEventListener('keydown', function(e){
+          if(e.key==='Enter' || e.key===' '){ e.preventDefault(); toggleKey(key); }
+        });
+        svgP.appendChild(hit);
+        pickCols[key] = {head:head, label:label, acc:acc, hit:hit};
+        setColState(key);
+      });
+      picker.appendChild(svgP);
+    });
+    updateCount();
+  }
+
+  presetSel.addEventListener('change', function(){
+    if(presetSel.value) applyPreset(findPreset(presetSel.value));
+    else markUnsaved();
+  });
+
+  keySel.addEventListener('change', function(){
+    custom.key = keySel.value;
+    markUnsaved();
+    renderPicker();
+  });
+
+  document.querySelectorAll('.quick-row .chip').forEach(function(chip){
+    chip.addEventListener('click', function(){
+      var q = chip.getAttribute('data-q');
+      shownClefs().forEach(function(clef){
+        PICK_STEPS.forEach(function(step){
+          var on = q==='all' ? true
+            : q==='lines' ? step%2===0
+            : q==='spaces' ? step%2!==0
+            : q==='staff' ? (step>=0 && step<=8)
+            : q==='ledger' ? (step<0 || step>8)
+            : false;
+          custom.sel[clef + ':' + step] = on;
+        });
+      });
+      markUnsaved();
+      renderPicker();
+      refreshStartAvailability();
+    });
+  });
+
+  $('savePresetBtn').addEventListener('click', function(){
+    var name = presetName.value.trim();
+    if(!name){ builderNote.textContent = 'Give the set a name first.'; presetName.focus(); return; }
+    var keys = selectedKeys();
+    if(!keys.length){ builderNote.textContent = 'Pick at least one note before saving.'; return; }
+    var existing = null;
+    userPresets.forEach(function(p){ if(p.name.toLowerCase()===name.toLowerCase()) existing = p; });
+    var p = existing || { id:'u-' + Date.now().toString(36) };
+    p.name = name; p.clef = state.clef; p.key = custom.key; p.notes = keys;
+    if(!existing) userPresets.push(p);
+    var ok = storeUserPresets(userPresets);
+    custom.presetId = p.id;
+    renderPresetOptions();
+    deletePresetBtn.disabled = false;
+    builderNote.textContent = ok
+      ? (existing ? 'Updated "' + name + '".' : 'Saved "' + name + '". It will be here next time you open this page in this browser.')
+      : 'Saved for this visit only: this browser is blocking storage, so it will be gone after a reload.';
+  });
+
+  deletePresetBtn.addEventListener('click', function(){
+    var id = custom.presetId;
+    if(!isUserPreset(id)) return;
+    var p = findPreset(id);
+    userPresets = userPresets.filter(function(x){ return x.id!==id; });
+    storeUserPresets(userPresets);
+    custom.presetId = '';
+    renderPresetOptions();
+    markUnsaved();
+    presetName.value = '';
+    builderNote.textContent = 'Deleted "' + (p ? p.name : 'preset') + '". The notes are still selected if you want to keep practicing them.';
+  });
+
+  renderPresetOptions();
+
+  /* ================= question flow ================= */
+  function poolWithinRange(clef){
+    var lo = Math.min(state.rangeMinIdx, state.rangeMaxIdx);
+    var hi = Math.max(state.rangeMinIdx, state.rangeMaxIdx);
+    var sub = NOTE_POOL.slice(lo, hi+1);
+    var ref = clef==='treble' ? TREBLE_REF : BASS_REF;
+    return sub.filter(function(n){
+      var step = n.di - ref;
+      return step >= -8 && step <= 16;
+    });
+  }
+
+  function nextQuestion(){
+    var note, clef;
+    var prevKey = state.current ? state.currentClef + ':' + state.current.di : '';
+    if(state.source==='midi'){
+      note = state.midiSequence[state.midiIndex++];
+      clef = state.clef==='both' ? (note.di >= MIDDLE_C_DI ? 'treble' : 'bass') : state.clef;
+    } else if(state.source==='custom'){
+      var set = selectedNotes();
+      var pick = set[Math.floor(Math.random()*set.length)];
+      // Re-draw once rather than show the same note twice in a row.
+      if(set.length>1 && pick.clef + ':' + pick.note.di === prevKey){
+        pick = set[Math.floor(Math.random()*set.length)];
+      }
+      clef = pick.clef;
+      note = pick.note;
+    } else {
+      clef = state.clef;
+      if(clef==='both') clef = Math.random()<0.5 ? 'treble' : 'bass';
+      var pool = poolWithinRange(clef);
+      if(pool.length===0){ clef = clef==='treble'?'bass':'treble'; pool = poolWithinRange(clef); }
+      note = pool[Math.floor(Math.random()*pool.length)];
+      if(pool.length>1 && clef + ':' + note.di === prevKey){
+        note = pool[Math.floor(Math.random()*pool.length)];
+      }
+    }
+    state.current = note;
+    state.currentClef = clef;
+    state.qStart = performance.now();
+    state.awaitingAnswer = true;
+    state.wrongDeductions = 0;
+    state.timeDeductions = 0;
+    drawStaff(clef, note, svg, '');
+    feedback.textContent = '\u00a0';
+    feedback.className = 'feedback';
+    Array.prototype.forEach.call(notegrid.children, function(b){ b.classList.remove('good','bad'); b.disabled=false; });
+    $('heardNote').textContent = '\u00a0';
+    skipBtn.hidden = true;
+    updatePointsDisplay();
+    startPointClock();
+    if(state.mode==='listen' && micOn) armListening();
+  }
+
+  // Every note starts at 10 points. A wrong click/sung note costs a point
+  // immediately; once the chosen time-per-note grace period elapses, each
+  // further second also costs a point. At 0, Skip appears.
+  function currentPoints(){
+    return Math.max(0, 10 - state.wrongDeductions - state.timeDeductions);
+  }
+  function updatePointsDisplay(){
+    var p = currentPoints();
+    pointsNum.textContent = p;
+    pointsNum.classList.toggle('low', p<=3);
+    if(p<=0) skipBtn.hidden = false;
+  }
+  function startPointClock(){
+    cancelAnimationFrame(state.timerHandle);
+    if(state.timerSec<=0) return; // "Off" - only wrong answers cost points
+    state.graceDeadline = performance.now() + state.timerSec*1000;
+    tickPointClock();
+  }
+  function tickPointClock(){
+    var overtime = performance.now() - state.graceDeadline;
+    var secondsOver = overtime>0 ? Math.floor(overtime/1000)+1 : 0;
+    if(secondsOver !== state.timeDeductions){
+      state.timeDeductions = secondsOver;
+      updatePointsDisplay();
+      if(currentPoints()<=0 && feedback.className.indexOf('bad')===-1){
+        feedback.textContent = 'Out of time - keep trying or skip';
+        feedback.className = 'feedback bad';
+      }
+    }
+    if(currentPoints()>0 || secondsOver===0){
+      state.timerHandle = requestAnimationFrame(tickPointClock);
+    }
+  }
+
+  // Click mode names the staff letter; a sharp or flat beside the note
+  // doesn't change which letter it is.
+  function submitAnswer(letter, btnEl){
+    judge(letter === state.current.letter, btnEl);
+  }
+
+  function judge(correct, btnEl){
+    if(!state.awaitingAnswer) return;
+    if(correct){
+      if(btnEl) btnEl.classList.add('good');
+      registerResult(true);
+    } else {
+      state.wrongDeductions++;
+      updatePointsDisplay();
+      if(btnEl){
+        btnEl.classList.add('bad');
+        (function(b){ setTimeout(function(){ b.classList.remove('bad'); }, 350); })(btnEl);
+      }
+      feedback.textContent = 'Not quite - try again';
+      feedback.className = 'feedback bad';
+    }
+  }
+
+  function registerResult(correct, given){
+    if(!state.awaitingAnswer) return;
+    state.awaitingAnswer = false;
+    cancelAnimationFrame(state.timerHandle);
+    var elapsed = (performance.now()-state.qStart)/1000;
+    var pointsEarned = correct ? currentPoints() : 0;
+    state.answered++;
+    if(correct){
+      state.correct++;
+      state.totalPoints += pointsEarned;
+      if(state.wrongDeductions===0 && state.timeDeductions===0){
+        state.streak++;
+        state.bestStreak = Math.max(state.bestStreak, state.streak);
+      } else {
+        state.streak = 0;
+      }
+      state.times.push(elapsed);
+      feedback.textContent = 'Correct - ' + noteLabel(state.current) + ' (+' + pointsEarned + ')';
+      feedback.className='feedback good';
+      drawStaff(state.currentClef, state.current, svg, 'flash-good');
+    } else {
+      state.streak = 0;
+      feedback.textContent = 'Skipped - it was ' + noteLabel(state.current);
+      feedback.className='feedback bad';
+      drawStaff(state.currentClef, state.current, svg, 'flash-bad');
+    }
+    streakNum.textContent = state.streak;
+    scoreNum.textContent = state.correct + '/' + state.answered;
+
+    var sequenceExhausted = state.source==='midi' && state.midiIndex >= state.midiSequence.length;
+    if((state.effLen>0 && state.answered>=state.effLen) || sequenceExhausted){
+      setTimeout(endSession, 550);
+    } else {
+      setTimeout(nextQuestion, 650);
+    }
+  }
+
+  skipBtn.addEventListener('click', function(){
+    if(!state.awaitingAnswer || skipBtn.hidden) return;
+    registerResult(false, null);
+  });
+  stopBtn.addEventListener('click', function(){
+    if(!state.running) return;
+    cancelAnimationFrame(state.timerHandle);
+    state.awaitingAnswer = false;
+    setRunningUI(false);
+  });
+  startBtn.addEventListener('click', function(){
+    if(startBtn.disabled) return;
+    // Listen mode needs the mic granted before a session can start, so the
+    // clock never runs against a student who hasn't been asked for mic
+    // access yet.
+    if(state.mode==='listen' && !micOn){
+      startBtn.disabled = true;
+      startSub.textContent = 'Requesting microphone access\u2026';
+      startMic().then(function(ok){
+        startBtn.disabled = false;
+        if(ok){
+          startSub.textContent = "Choose your settings above, then start when you're ready.";
+          beginRun();
+        } else {
+          startSub.textContent = 'Microphone access is required for Listen mode - see the message above, or switch to Click mode.';
+        }
+      });
+      return;
+    }
+    beginRun();
+  });
+  $('doneBtn').addEventListener('click', function(){
+    $('summaryOverlay').hidden = true;
+    setRunningUI(false);
+  });
+
+  function setRunningUI(running){
+    state.running = running;
+    startCta.hidden = running;
+    runControls.hidden = !running;
+    notegrid.hidden = !running || state.mode!=='click';
+    pointswrap.hidden = !running;
+    skipBtn.hidden = true;
+    hint.textContent = running
+      ? 'Name the note before your points run out.'
+      : "Pick a clef and answer mode above, then press Start.";
+  }
+
+  function beginRun(){
+    state.correct=0; state.answered=0; state.streak=0; state.bestStreak=0; state.times=[]; state.midiIndex=0; state.totalPoints=0;
+    state.effLen = state.source==='midi' ? state.midiSequence.length : state.sessionLen;
+    streakNum.textContent='0'; scoreNum.textContent='0/0';
+    $('summaryOverlay').hidden = true;
+    setRunningUI(true);
+    nextQuestion();
+  }
+
+  function endSession(){
+    setRunningUI(false);
+    $('sumCorrect').textContent = state.correct + ' / ' + state.answered;
+    var acc = state.answered ? Math.round(100*state.correct/state.answered) : 0;
+    $('sumAcc').textContent = acc + '%';
+    $('sumStreak').textContent = state.bestStreak;
+    $('sumPoints').textContent = state.totalPoints;
+    $('summaryOverlay').hidden = false;
+  }
+
+  /* ================= microphone pitch detection ================= */
+  var micOn = false, audioCtx=null, analyser=null, micStream=null, micRAF=null;
+  var micGate = { locked:false, lockedPc:null, buf:[], smoothRms:0, silentFrames:0, lastOnset:0, lastWrongAt:0 };
+  var micSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+  if(!micSupported){
+    $('micStatus').textContent = 'This browser context has no microphone access.';
+    $('micToggle').disabled = true;
+  }
+
+  function stopMic(){
+    micOn=false;
+    cancelAnimationFrame(micRAF);
+    if(micStream){ micStream.getTracks().forEach(function(t){t.stop();}); micStream=null; }
+    if(audioCtx){ audioCtx.close().catch(function(){}); audioCtx=null; }
+    $('micToggle').textContent = 'Turn on microphone';
+    $('micToggle').classList.add('off');
+    if(micSupported) $('micStatus').textContent = 'Microphone is off';
+    $('meterFill').style.width='0%';
+  }
+
+  // Returns a Promise<boolean> - true once the mic is actually granted and
+  // running, false on any denial/failure. Start practice (in Listen mode)
+  // waits on this before a session is allowed to begin.
+  function startMic(){
+    if(!micSupported) return Promise.resolve(false);
+    if(micOn) return Promise.resolve(true);
+    $('micStatus').textContent = 'Requesting microphone...';
+    return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}})
+      .then(function(stream){
+        micStream = stream;
+        audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+        var src = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        src.connect(analyser);
+        micOn = true;
+        $('micToggle').textContent = 'Turn off microphone';
+        $('micToggle').classList.remove('off');
+        $('micStatus').textContent = state.awaitingAnswer ? 'Listening... sing or play the note' : 'Microphone ready';
+        micLoop();
+        return true;
+      })
+      .catch(function(err){
+        var msg = 'Microphone access failed (' + (err && err.name ? err.name : 'unknown') + ').';
+        if(err && err.name==='NotAllowedError') msg = 'Microphone permission was denied. Allow it in this browser\'s site settings, or open the standalone file directly.';
+        else if(err && err.name==='NotFoundError') msg = 'No microphone was found on this device.';
+        $('micStatus').textContent = msg;
+        return false;
+      });
+  }
+
+  $('micToggle').addEventListener('click', function(){
+    if(micOn) stopMic(); else startMic();
+  });
+
+  function armListening(){
+    // Only the pitch buffer resets between notes. The hold lock carries
+    // over, so a note still ringing from the last answer isn't judged
+    // against the new one.
+    micGate.buf = [];
+    if(micOn) $('micStatus').textContent = 'Listening... sing or play the note';
+  }
+
+  var NOTE_NAMES_CHROMATIC = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+  function autoCorrelate(buf, sampleRate){
+    var SIZE = buf.length;
+    var rms = 0;
+    for(var i=0;i<SIZE;i++){ rms += buf[i]*buf[i]; }
+    rms = Math.sqrt(rms/SIZE);
+    if(rms < 0.01) return {freq:-1, rms:rms};
+
+    var r1=0, r2=SIZE-1, thres=0.2;
+    for(var i2=0;i2<SIZE/2;i2++){ if(Math.abs(buf[i2])<thres){ r1=i2; break; } }
+    for(var i3=1;i3<SIZE/2;i3++){ if(Math.abs(buf[SIZE-i3])<thres){ r2=SIZE-i3; break; } }
+    var trimmed = buf.slice(r1,r2);
+    var SIZE2 = trimmed.length;
+
+    var c = new Array(SIZE2).fill(0);
+    for(var lag=0; lag<SIZE2; lag++){
+      for(var j=0;j<SIZE2-lag;j++){ c[lag] += trimmed[j]*trimmed[j+lag]; }
+    }
+    var d=0; while(d<SIZE2-1 && c[d]>c[d+1]) d++;
+    var maxval=-1, maxpos=-1;
+    for(var k=d;k<SIZE2;k++){ if(c[k]>maxval){ maxval=c[k]; maxpos=k; } }
+    var T0 = maxpos;
+    if(T0<=0) return {freq:-1, rms:rms};
+    var x1=c[T0-1]!==undefined?c[T0-1]:c[T0], x2=c[T0], x3=c[T0+1]!==undefined?c[T0+1]:c[T0];
+    var a = (x1+x3-2*x2)/2, b=(x3-x1)/2;
+    if(a) T0 = T0 - b/(2*a);
+    return {freq: sampleRate/T0, rms:rms};
+  }
+
+  // Each played note is judged once. After a judgement the gate locks on
+  // that pitch; it re-opens when
+  //   - the sound stops (a few frames near silence),
+  //   - a new attack arrives (level jumps well above its recent average),
+  //     so re-striking the same note counts as a fresh try, or
+  //   - a different pitch holds steady for longer than usual (a legato
+  //     move to a new note, not vibrato or decay wobble).
+  // On top of that, wrong answers are capped at one per second.
+  var ONSET_RATIO = 1.8, ONSET_MIN_RMS = 0.02, SILENCE_RMS = 0.012;
+  var STABLE_FRAMES = 5, LEGATO_FRAMES = 10, WRONG_COOLDOWN_MS = 1000;
+
+  function micLoop(){
+    micRAF = requestAnimationFrame(micLoop);
+    if(!analyser) return;
+    var buf = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(buf);
+    var res = autoCorrelate(buf, audioCtx.sampleRate);
+    var now = performance.now();
+    $('meterFill').style.width = (Math.min(1, res.rms*6)*100)+'%';
+
+    if(res.rms > ONSET_MIN_RMS && res.rms > micGate.smoothRms*ONSET_RATIO && now - micGate.lastOnset > 150){
+      micGate.locked = false;
+      micGate.buf = [];
+      micGate.lastOnset = now;
+    }
+    micGate.smoothRms = micGate.smoothRms*0.85 + res.rms*0.15;
+
+    if(res.rms < SILENCE_RMS){
+      micGate.silentFrames++;
+      if(micGate.silentFrames >= 4){ micGate.locked = false; micGate.buf = []; }
+    } else {
+      micGate.silentFrames = 0;
+    }
+
+    if(res.freq<=0 || res.freq>1500 || res.freq<60){
+      $('heardNote').textContent = String.fromCharCode(0xA0);
+      return;
+    }
+    var pc = ((Math.round(69 + 12*Math.log2(res.freq/440)) % 12) + 12) % 12;
+    $('heardNote').textContent = NOTE_NAMES_CHROMATIC[pc].replace('#', SHARP);
+
+    if(state.mode!=='listen' || !state.awaitingAnswer) return;
+
+    if(micGate.locked && pc===micGate.lockedPc){ micGate.buf = []; return; }
+    micGate.buf.push(pc);
+    if(micGate.buf.length > LEGATO_FRAMES) micGate.buf.shift();
+    var need = micGate.locked ? LEGATO_FRAMES : STABLE_FRAMES;
+    if(micGate.buf.length < need) return;
+    var recent = micGate.buf.slice(-need);
+    for(var i=0;i<recent.length;i++){ if(recent[i]!==pc) return; }
+
+    micGate.locked = true;
+    micGate.lockedPc = pc;
+    micGate.buf = [];
+    var correct = pc === pitchClassOf(state.current);
+    if(!correct){
+      if(now - micGate.lastWrongAt < WRONG_COOLDOWN_MS) return;
+      micGate.lastWrongAt = now;
+    }
+    judge(correct, null);
+  }
+
+  /* ================= boot (idle - waits for Start) ================= */
+  drawStaff('treble', null, svg, '');
+  setRunningUI(false);
+  refreshStartAvailability();
+
+})();
+</script>
